@@ -1,0 +1,1574 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
+<meta http-equiv="Pragma" content="no-cache"/>
+<meta http-equiv="Expires" content="0"/>
+<title>RTO Operations Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+:root{
+  --bg:#F1F4F9;--surface:#fff;--surf2:#F5F7FA;--surf3:#E8ECF2;
+  --border:#DDE1EB;--border2:#C8CDD9;
+  --t1:#0F172A;--t2:#475569;--t3:#94A3B8;
+  --blue:#2563EB;--bluel:#EFF6FF;--blued:#1D4ED8;
+  --green:#059669;--greenl:#ECFDF5;
+  --red:#DC2626;--redl:#FEF2F2;
+  --amber:#D97706;--amberl:#FFFBEB;
+  --purple:#7C3AED;--purplel:#F5F3FF;
+  --teal:#0891B2;--teall:#ECFEFF;
+  --xs:0 1px 3px rgba(0,0,0,.06);--sm:0 2px 8px rgba(0,0,0,.08);
+  --md:0 4px 16px rgba(0,0,0,.1);--lg:0 8px 32px rgba(0,0,0,.14);
+  --r:10px;--rl:14px;--rs:6px;
+  --font:'Inter','Segoe UI',system-ui,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:var(--font);background:var(--bg);color:var(--t1);font-size:14px;line-height:1.6;-webkit-font-smoothing:antialiased;}
+#login-screen{position:fixed;inset:0;z-index:1000;background:linear-gradient(145deg,#0B1E3D 0%,#0F2C5C 35%,#1340A0 70%,#1A52CC 100%);display:flex;align-items:center;justify-content:center;overflow:hidden;}
+#login-screen.hide{display:none}
+#login-screen::before{content:'';position:absolute;width:500px;height:500px;border-radius:50%;background:radial-gradient(circle,rgba(37,99,235,.25) 0%,transparent 70%);top:-120px;left:-120px;pointer-events:none;}
+#login-screen::after{content:'';position:absolute;width:400px;height:400px;border-radius:50%;background:radial-gradient(circle,rgba(99,102,241,.2) 0%,transparent 70%);bottom:-80px;right:-80px;pointer-events:none;}
+.l-chip{position:absolute;display:flex;align-items:center;gap:10px;background:rgba(255,255,255,.08);backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,.15);border-radius:14px;padding:12px 18px;pointer-events:none;z-index:1;box-shadow:0 4px 20px rgba(0,0,0,.25);}
+.l-chip-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.l-chip-dot.green{background:#22C55E;box-shadow:0 0 6px #22C55E;}
+.l-chip-dot.amber{background:#F59E0B;box-shadow:0 0 6px #F59E0B;}
+.l-chip-dot.red{background:#EF4444;box-shadow:0 0 6px #EF4444;}
+.l-chip-lines{display:flex;flex-direction:column;gap:3px;}
+.l-chip-line{height:3px;border-radius:2px;background:rgba(255,255,255,.3);}
+.l-chip-lbl{font-size:13px;font-weight:600;color:rgba(255,255,255,.9);}
+.l-chip-num{font-size:22px;font-weight:800;color:#fff;line-height:1;}
+.l-chip-sub{font-size:10px;color:rgba(255,255,255,.55);font-weight:500;}
+.lc1{top:15%;left:4%;}.lc2{top:40%;left:3%;}.lc3{top:65%;left:5%;}
+.lc4{top:25%;right:4%;}.lc5{top:50%;right:4%;}.lc6{top:72%;right:4%;}
+.l-watermark{position:absolute;bottom:32px;right:40px;text-align:right;pointer-events:none;z-index:1;}
+.l-wm-title{font-size:28px;font-weight:900;color:rgba(255,255,255,.12);letter-spacing:1px;}
+.l-wm-sub{font-size:11px;color:rgba(255,255,255,.1);font-weight:500;margin-top:2px;}
+.lcard{position:relative;z-index:2;background:rgba(255,255,255,.97);backdrop-filter:blur(20px);border-radius:20px;padding:36px 38px 30px;width:100%;max-width:420px;box-shadow:0 32px 80px rgba(0,0,0,.45),0 0 0 1px rgba(255,255,255,.1);}
+.lcard .hide{display:none!important;}
+.l-head{display:flex;align-items:center;gap:14px;margin-bottom:22px;}
+.l-icon{width:46px;height:46px;border-radius:13px;background:linear-gradient(135deg,#EFF6FF,#DBEAFE);border:1.5px solid #BFDBFE;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;}
+.l-title{font-size:19px;font-weight:800;color:#0F172A;line-height:1.2;}
+.l-sub{font-size:12px;color:#94A3B8;margin-top:2px;}
+.l-div{height:1px;background:#E2E8F0;margin-bottom:20px;}
+.lbl{font-size:12px;font-weight:600;color:#475569;margin-bottom:6px;display:block;}
+.linp-wrap{position:relative;margin-bottom:16px;}
+.finp{width:100%;padding:11px 14px;border-radius:9px;border:1.5px solid #E2E8F0;background:#F8FAFC;font-size:14px;color:#0F172A;outline:none;transition:border-color .15s,background .15s;font-family:var(--font);}
+.finp:focus{border-color:#2563EB;background:#fff;box-shadow:0 0 0 3px rgba(37,99,235,.08);}
+.finp.pwd-field{padding-right:44px;}
+.pwd-toggle{position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#94A3B8;font-size:16px;padding:4px;line-height:1;}
+.pwd-toggle:hover{color:#2563EB;}
+.lbtn{width:100%;padding:12px;border-radius:9px;background:linear-gradient(135deg,#2563EB,#1D4ED8);color:#fff;border:none;font-size:14px;font-weight:700;cursor:pointer;margin-top:2px;transition:opacity .15s,transform .1s;box-shadow:0 4px 14px rgba(37,99,235,.35);}
+.lbtn:hover:not(:disabled){opacity:.92;transform:translateY(-1px);}
+.lbtn:disabled{opacity:.55;cursor:default;}
+.lerr{font-size:12px;color:#DC2626;text-align:center;min-height:18px;margin-top:10px;font-weight:500;}
+.lhint{font-size:12px;color:#94A3B8;text-align:center;margin-top:14px;}
+.lhint a{color:#2563EB;font-weight:600;text-decoration:none;}
+.l-cities{display:flex;flex-wrap:wrap;justify-content:center;gap:6px;margin-top:18px;padding-top:16px;border-top:1px solid #F1F5F9;}
+.l-city-pill{padding:4px 12px;border-radius:20px;font-size:11px;font-weight:700;color:#64748B;background:#F1F5F9;border:1px solid #E2E8F0;cursor:pointer;transition:all .12s;}
+.l-city-pill:hover{background:#2563EB;color:#fff;border-color:#2563EB;}
+#ov{position:fixed;inset:0;z-index:9000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;background:rgba(15,23,42,.45);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);transition:opacity .25s;}
+#ov.hide{display:none;}
+.ov-card{background:rgba(255,255,255,.97);border-radius:18px;padding:36px 48px;display:flex;flex-direction:column;align-items:center;gap:18px;box-shadow:0 24px 80px rgba(0,0,0,.28),0 0 0 1px rgba(255,255,255,.15);min-width:240px;}
+.ov-ring{width:52px;height:52px;border:4px solid #E2E8F0;border-top-color:var(--blue);border-radius:50%;animation:spin .75s linear infinite;}
+.ov-dots{display:flex;gap:7px;margin-top:-4px;}
+.ov-dot{width:7px;height:7px;border-radius:50%;background:var(--blue);opacity:.25;animation:dot-pulse 1.2s ease-in-out infinite;}
+.ov-dot:nth-child(2){animation-delay:.2s;}
+.ov-dot:nth-child(3){animation-delay:.4s;}
+@keyframes dot-pulse{0%,80%,100%{opacity:.2;transform:scale(.85)}40%{opacity:1;transform:scale(1)}}
+.ov-msg{font-size:14px;color:var(--t2);font-weight:600;letter-spacing:.1px;}
+.ov-sub{font-size:11px;color:var(--t3);margin-top:-10px;}
+@keyframes spin{to{transform:rotate(360deg)}}
+#filter-spinner{display:none;align-items:center;gap:6px;font-size:11px;color:var(--blue);font-weight:600;}
+#filter-spinner.vis{display:flex;}
+.fspin{width:14px;height:14px;border:2px solid #BFDBFE;border-top-color:var(--blue);border-radius:50%;animation:spin .6s linear infinite;}
+.hdr{height:56px;background:linear-gradient(135deg,#1E3A5F,#2563EB);padding:0 24px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:200;box-shadow:0 2px 12px rgba(37,99,235,.3);}
+.hdr-brand{display:flex;align-items:center;gap:9px;}
+.hdr-icon{width:32px;height:32px;border-radius:8px;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;font-size:15px;}
+.hdr-title{font-size:15px;font-weight:700;color:#fff;}
+.live-pill{font-size:10px;font-weight:700;letter-spacing:.6px;background:var(--green);color:#fff;padding:2px 8px;border-radius:20px;}
+.asof{font-size:11px;color:rgba(255,255,255,.7);background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);padding:3px 10px;border-radius:20px;}
+.hdr-r{margin-left:auto;display:flex;align-items:center;gap:8px;}
+.qc-tabs{display:flex;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);border-radius:8px;padding:2px;gap:2px;}
+.qc-tabs button{padding:5px 14px;border:none;background:none;color:rgba(255,255,255,.75);font-size:12px;font-weight:600;border-radius:6px;cursor:pointer;transition:all .12s;}
+.qc-tabs button.on{background:rgba(255,255,255,.25);color:#fff;}
+.hbtn{padding:5px 13px;border-radius:var(--rs);border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.1);font-size:12px;font-weight:600;color:rgba(255,255,255,.85);cursor:pointer;transition:all .12s;}
+.hbtn:hover{background:rgba(255,255,255,.2);color:#fff;}
+.hbtn.danger:hover{background:#DC2626;border-color:#DC2626;color:#fff;}
+.upill{font-size:11px;font-weight:600;color:#fff;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.25);padding:3px 10px;border-radius:20px;}
+.dl-bar{background:var(--surface);border-bottom:1px solid var(--border);padding:8px 24px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+.dl-bar.hide{display:none;}
+.dl-lbl{font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.5px;}
+.dlb{padding:6px 14px;border-radius:var(--rs);font-size:12px;font-weight:600;cursor:pointer;border:1.5px solid;transition:all .12s;}
+.dlb:disabled{opacity:.35;cursor:default;pointer-events:none;}
+.dlb-pi{background:var(--bluel);border-color:#BFDBFE;color:var(--blue);}
+.dlb-pi:not(:disabled):hover{background:var(--blue);color:#fff;border-color:var(--blue);}
+.dlb-flt{background:var(--amberl);border-color:#FDE68A;color:var(--amber);}
+.dlb-flt:not(:disabled):hover{background:var(--amber);color:#fff;border-color:var(--amber);}
+.dlb-loss{background:var(--redl);border-color:#FECACA;color:var(--red);}
+.dlb-loss:not(:disabled):hover{background:var(--red);color:#fff;border-color:var(--red);}
+.fbar{background:var(--surface);border-bottom:1px solid var(--border);padding:10px 24px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;box-shadow:var(--xs);}
+.fg{display:flex;align-items:center;gap:5px;}
+.fg label{font-size:11px;font-weight:700;color:var(--t3);white-space:nowrap;text-transform:uppercase;letter-spacing:.4px;}
+.fg select,.fg input[type=date]{padding:6px 10px;border-radius:var(--rs);border:1.5px solid var(--border);background:var(--surf2);font-size:12px;color:var(--t1);cursor:pointer;min-width:110px;font-weight:500;}
+.fg select:focus,.fg input:focus{outline:none;border-color:var(--blue);background:#fff;}
+.fdiv{width:1px;height:22px;background:var(--border);margin:0 2px;}
+.fbtn{padding:6px 13px;border-radius:var(--rs);font-size:12px;font-weight:600;cursor:pointer;border:1.5px solid;transition:all .12s;}
+.btn-rst{background:var(--redl);border-color:#FECACA;color:var(--red);}
+.btn-rst:hover{background:var(--red);color:#fff;border-color:var(--red);}
+.btn-ref{background:var(--bluel);border-color:#BFDBFE;color:var(--blue);}
+.btn-ref:hover{background:var(--blue);color:#fff;border-color:var(--blue);}
+.main{padding:20px 24px;max-width:1440px;margin:0 auto;}
+.sec{margin-bottom:28px;}
+.sec-hd{display:flex;align-items:center;gap:10px;margin-bottom:14px;}
+.sec-ttl{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;color:var(--t2);white-space:nowrap;}
+.sec-ln{flex:1;height:1px;background:var(--border);}
+.sec-nt{font-size:11px;color:var(--t3);}
+.kgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;}
+.kpi{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:18px 20px;position:relative;overflow:hidden;box-shadow:var(--xs);transition:box-shadow .2s,transform .15s;}
+.kpi:hover{box-shadow:var(--sm);transform:translateY(-1px);}
+.kpi::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--acc,var(--blue));border-radius:var(--r) var(--r) 0 0;}
+.kpi.ab{--acc:var(--blue)}.kpi.ar{--acc:var(--red)}.kpi.ag{--acc:var(--green)}.kpi.aa{--acc:var(--amber);background:#FFFBEB;}.kpi.ap{--acc:var(--purple);background:var(--purplel);}.kpi.pu{--acc:var(--purple);}
+.ki{width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;margin-bottom:10px;}
+.ab .ki{background:var(--bluel)}.ar .ki{background:var(--redl)}.ag .ki{background:var(--greenl)}.aa .ki{background:var(--amberl)}.ap .ki{background:var(--purplel)}
+.kl{font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px;}
+.kv{font-size:30px;font-weight:800;line-height:1;color:var(--t1);letter-spacing:-1px;}
+.ar .kv{color:var(--red)}.ag .kv{color:var(--green)}.aa .kv{color:var(--amber)}.ap .kv{color:var(--purple)}
+.ks{font-size:13px;font-weight:700;color:var(--t3);margin-top:4px;}
+.kpi.click{cursor:pointer;}
+.kh{font-size:10px;color:var(--t3);margin-top:6px;}
+.age-strip{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;}
+.age-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:16px 18px;display:flex;align-items:center;gap:14px;box-shadow:var(--xs);}
+.age-ring{width:52px;height:52px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;}
+.age-card.p .age-ring{background:var(--bluel);color:var(--blue)}
+.age-card.rv .age-ring{background:var(--amberl);color:var(--amber)}
+.age-card.ha .age-ring{background:var(--redl);color:var(--red)}
+.age-info{flex:1;min-width:0;}
+.age-lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--t3);margin-bottom:2px;}
+.age-cnt{font-size:24px;font-weight:800;line-height:1;}
+.age-card.p .age-cnt{color:var(--blue)}.age-card.rv .age-cnt{color:var(--amber)}.age-card.ha .age-cnt{color:var(--red)}
+.age-amt{font-size:11px;color:var(--t3);margin-top:2px;}
+.age-bar{height:4px;background:var(--surf3);border-radius:2px;margin-top:8px;overflow:hidden;}
+.age-fill{height:100%;border-radius:2px;transition:width .5s ease;}
+.age-card.p .age-fill{background:var(--blue)}.age-card.rv .age-fill{background:var(--amber)}.age-card.ha .age-fill{background:var(--red)}.age-card.ha{background:#FFF1F1;}
+.cgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;}
+.ccard{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:16px 18px;cursor:pointer;transition:all .15s;box-shadow:var(--xs);}
+.ccard:hover{border-color:var(--blue);box-shadow:var(--md);transform:translateY(-2px);}
+.ccard.sel{border-color:var(--blue);background:var(--bluel);}
+.ccard.red{border-color:#FECACA;background:var(--redl);}
+.ctop{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+.cname{font-size:14px;font-weight:700;color:var(--t1);}
+.c-red-badge{font-size:9px;font-weight:700;color:var(--red);background:rgba(220,38,38,.1);border:1px solid #FECACA;padding:1px 7px;border-radius:20px;}
+.cstats{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
+.cs{background:var(--surf2);border-radius:6px;padding:7px 9px;}
+.csl{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--t3);margin-bottom:1px;}
+.csv{font-size:15px;font-weight:800;color:var(--t1);}
+.cs.rd .csv{color:var(--red)}.cs.bl .csv{color:var(--blue)}.cs.am .csv{color:var(--amber)}.cs.pu .csv{color:var(--purple)}
+.cs.aa .csv{color:var(--amber);font-weight:800;}
+.cs.p02 .csv{color:var(--blue);}
+.cs.p35 .csv{color:var(--amber);}
+.cs.ha6 .csv{color:var(--red);}
+.csv-sm{font-size:10px;font-weight:500;color:var(--t3);}
+.cbtns{display:flex;gap:5px;margin-top:10px;}
+.cbtn{flex:1;padding:5px;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer;border:1px solid;text-align:center;transition:all .12s;}
+.cb-dl{background:var(--bluel);border-color:#BFDBFE;color:var(--blue);}
+.cb-dl:hover{background:var(--blue);color:#fff;}
+.cb-ap{background:var(--redl);border-color:#FECACA;color:var(--red);}
+.cb-ap:hover{background:var(--red);color:#fff;}
+#cdet{display:none;margin-bottom:32px;}
+#cdet.vis{display:block;}
+.cd-hdr{display:flex;align-items:center;gap:12px;margin-bottom:18px;padding:14px 20px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--xs);flex-wrap:wrap;}
+.cd-ttl{font-size:18px;font-weight:800;color:var(--t1);}
+.cd-r{margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+.ap-fbar{display:flex;align-items:center;gap:8px;padding:10px 16px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:var(--r);margin-bottom:14px;}
+.apfb{padding:5px 14px;border-radius:6px;border:1px solid #FDE68A;background:#fff;color:var(--amber);font-size:11px;font-weight:700;cursor:pointer;}
+.apfb.on{background:var(--amber);color:#fff;border-color:var(--amber);}
+.ap-cnt{background:var(--redl);color:var(--red);border:1px solid #FECACA;font-size:11px;font-weight:700;padding:2px 9px;border-radius:20px;}
+.pivot-section{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--xs);margin-bottom:16px;overflow:hidden;}
+.pivot-hdr{padding:12px 18px;background:linear-gradient(135deg,#1E3A5F,var(--blue));display:flex;align-items:center;justify-content:space-between;}
+.pivot-hdr h3{color:#fff;font-size:13px;font-weight:700;margin:0;}
+.pivot-hdr span{font-size:11px;color:rgba(255,255,255,.7);}
+.pivot-table{width:100%;border-collapse:collapse;font-size:13px;}
+.pivot-table th{background:#E2E8F0;padding:10px 18px;text-align:center;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:#334155;font-weight:700;border-bottom:2px solid #CBD5E1;}
+.pivot-table td{padding:16px 18px;text-align:center;border-bottom:1px solid var(--border);}
+.pv-fc{color:var(--blue);font-weight:800;font-size:20px;}
+.pv-rt{color:var(--green);font-weight:800;font-size:20px;}
+.pv-3pl{color:var(--amber);font-weight:800;font-size:20px;}
+.pv-tot{color:var(--t1);font-weight:800;font-size:20px;}
+.chgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;}
+.chgrid .sp3{grid-column:1/-1;}
+.chcard{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:18px 20px;box-shadow:var(--xs);}
+.chhd{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
+.chhd h3{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--t2);}
+.chcard canvas{max-height:200px;}
+.twrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--xs);overflow:hidden;}
+.thdr{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;background:linear-gradient(135deg,#1E3A5F,var(--blue));gap:10px;flex-wrap:wrap;}
+.thdr h3{font-size:14px;font-weight:700;color:#fff;}
+.thdr-r{display:flex;align-items:center;gap:8px;}
+.tmeta{font-size:11px;color:rgba(255,255,255,.8);background:rgba(255,255,255,.15);padding:3px 10px;border-radius:20px;border:1px solid rgba(255,255,255,.2);}
+.tsch-w{position:relative;}
+.tsch-w input{padding:6px 12px 6px 30px;border-radius:6px;border:1.5px solid rgba(255,255,255,.25);background:rgba(255,255,255,.12);font-size:12px;color:#fff;width:220px;outline:none;}
+.tsch-w input::placeholder{color:rgba(255,255,255,.5);}
+.tsch-w input:focus{border-color:rgba(255,255,255,.5);background:rgba(255,255,255,.2);}
+.tsch-icon{position:absolute;left:8px;top:50%;transform:translateY(-50%);color:rgba(255,255,255,.5);font-size:13px;pointer-events:none;}
+.apbtn{display:flex;align-items:center;gap:5px;padding:5px 12px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;border:1.5px solid rgba(255,255,255,.3);background:rgba(255,255,255,.1);color:#fff;}
+.apbtn:hover,.apbtn.on{background:var(--red);color:#fff;border-color:var(--red);}
+.apn{background:var(--red);color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:20px;}
+.apbtn.on .apn{background:rgba(255,255,255,.3);}
+.qbtn{padding:5px 12px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;border:1.5px solid rgba(255,255,255,.3);background:rgba(255,255,255,.1);color:#fff;}
+.qbtn:hover{background:rgba(255,255,255,.25);}
+.tscroll{overflow-x:auto;max-height:620px;overflow-y:auto;}
+table{width:100%;border-collapse:collapse;font-size:13px;}
+thead th{background:#E2E8F0;padding:11px 14px;text-align:left;white-space:nowrap;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:#334155;font-weight:700;border-bottom:2px solid #CBD5E1;position:sticky;top:0;z-index:10;}
+tbody tr{border-bottom:1px solid #E2E8F0;transition:background .08s;}
+tbody tr:hover{background:#F0F7FF;}
+tbody tr.tg{background:#F0FDF4;}
+tbody tr.tr{background:var(--redl);}
+tbody tr.tl{background:var(--purplel);}
+tbody tr.tm{background:#FFFBEB;border-left:3px solid #D97706;}
+td{padding:12px 14px;color:var(--t1);vertical-align:middle;white-space:nowrap;}
+.td-id{font-weight:700;font-size:13px;font-family:'SFMono-Regular',Consolas,monospace;letter-spacing:.4px;color:var(--blue);}
+.ec{display:flex;align-items:flex-start;gap:6px;min-width:220px;}
+.isel{padding:6px 9px;border-radius:6px;border:1.5px solid var(--border);background:var(--surf2);font-size:12px;color:var(--t1);cursor:pointer;flex:1;max-width:210px;font-weight:500;}
+.isel:focus{outline:none;border-color:var(--blue);background:#fff;}
+.isel:disabled{opacity:.5;cursor:default;}
+.isel.ch{border-color:var(--amber)!important;background:#FFFBEB;color:var(--amber);}
+.isel.isel-mismatch{border-color:var(--red)!important;background:var(--redl);color:var(--red);}
+.del-btn{width:24px;height:24px;border-radius:5px;border:1.5px solid #FECACA;background:var(--redl);color:var(--red);font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .12s;margin-top:2px;}
+.del-btn:hover{background:var(--red);color:#fff;}
+.hist-btn{width:22px;height:22px;border-radius:5px;border:1.5px solid #D8B4FE;background:var(--purplel);color:var(--purple);font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .12s;margin-top:2px;font-weight:700;}
+.hist-btn:hover{background:var(--purple);color:#fff;}
+.lkchip{font-size:10px;font-weight:700;color:var(--t3);background:var(--surf3);border:1px solid var(--border2);border-radius:4px;padding:2px 7px;}
+.lknote{font-size:12px;color:var(--t3);font-style:italic;}
+.hint{font-size:10px;font-weight:600;color:var(--amber);margin-top:4px;display:block;}
+.cn-inp{padding:5px 9px;border-radius:6px;border:1.5px solid #A7F3D0;background:var(--greenl);font-size:12px;color:var(--t1);width:150px;margin-top:4px;}
+.cn-inp:focus{outline:none;border-color:var(--green);}
+.cn-lbl{font-size:10px;font-weight:700;color:var(--green);margin-top:4px;display:block;}
+.ref-inp{padding:5px 9px;border-radius:6px;border:1.5px solid #FDE68A;background:var(--amberl);font-size:12px;color:var(--t1);width:160px;margin-top:4px;}
+.ref-inp:focus{outline:none;border-color:var(--amber);}
+.ref-lbl{font-size:10px;font-weight:700;color:var(--amber);margin-top:4px;display:block;}
+.cod-inp{padding:5px 9px;border-radius:6px;border:1.5px solid #FDE68A;background:var(--amberl);font-size:12px;color:var(--t1);width:130px;margin-top:4px;}
+.cod-warn{font-size:10px;color:var(--red);font-weight:600;margin-top:3px;}
+.loss-disp{font-size:11px;font-weight:700;color:var(--red);margin-top:4px;padding:3px 8px;background:var(--redl);border-radius:4px;border:1px solid #FECACA;display:inline-block;}
+.ro{font-size:12px;color:var(--t2);}
+.edit-warn-popup{position:fixed;top:70px;right:24px;z-index:9998;background:#1E3A5F;color:#fff;padding:12px 18px;border-radius:10px;font-size:13px;font-weight:600;box-shadow:var(--md);display:flex;align-items:center;gap:10px;border-left:4px solid var(--amber);}
+.edit-warn-popup.hide{display:none;}
+.sbar{position:sticky;bottom:0;z-index:50;background:linear-gradient(135deg,#1E3A5F,var(--blue));padding:12px 20px;display:flex;align-items:center;gap:10px;box-shadow:0 -4px 20px rgba(37,99,235,.25);}
+.sbar.hide{display:none;}
+.scnt{font-size:13px;font-weight:600;color:rgba(255,255,255,.9);}
+.sbtn{display:flex;align-items:center;gap:6px;padding:8px 22px;border-radius:7px;background:#fff;color:var(--blue);border:none;font-size:13px;font-weight:700;cursor:pointer;}
+.sbtn:hover{background:#EFF6FF}
+.sbtn:disabled{opacity:.5;cursor:default;}
+.clrall{padding:8px 16px;border-radius:7px;border:1.5px solid rgba(255,255,255,.3);background:rgba(255,255,255,.1);color:rgba(255,255,255,.85);font-size:12px;font-weight:600;cursor:pointer;}
+.clrall:hover{background:rgba(220,38,38,.8);border-color:rgba(220,38,38,.8);color:#fff;}
+.pag{display:flex;align-items:center;gap:6px;padding:12px 20px;border-top:1px solid var(--border);justify-content:flex-end;background:var(--surf2);}
+.pag button{padding:6px 16px;border-radius:6px;border:1.5px solid var(--border);background:var(--surface);color:var(--t2);font-size:12px;font-weight:600;cursor:pointer;}
+.pag button:disabled{opacity:.4;cursor:default;}
+.pag button:not(:disabled):hover{border-color:var(--blue);color:var(--blue);background:var(--bluel);}
+.pagi{font-size:12px;color:var(--t2);font-weight:600;padding:0 8px;}
+.b{display:inline-flex;align-items:center;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:600;gap:3px;white-space:nowrap;}
+.bb{background:var(--bluel);color:var(--blue);border:1px solid #BFDBFE;}
+.bg{background:var(--greenl);color:var(--green);border:1px solid #A7F3D0;}
+.br{background:var(--redl);color:var(--red);border:1px solid #FECACA;}
+.ba{background:var(--amberl);color:var(--amber);border:1px solid #FDE68A;}
+.bp{background:var(--purplel);color:var(--purple);border:1px solid #D8B4FE;}
+.bt{background:var(--teall);color:var(--teal);border:1px solid #A5F0FC;}
+.bs{background:var(--surf2);color:var(--t2);border:1px solid var(--border);}
+.flash{animation:flash 1.4s infinite;}
+@keyframes flash{0%,100%{opacity:1}50%{opacity:.45}}
+.mbg{position:fixed;inset:0;z-index:500;background:rgba(15,23,42,.5);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;padding:20px;}
+.mbg.hide{display:none;}
+.modal{background:var(--surface);border-radius:var(--rl);box-shadow:var(--lg);width:100%;max-width:780px;max-height:84vh;display:flex;flex-direction:column;overflow:hidden;}
+.mhdr{display:flex;align-items:center;justify-content:space-between;padding:16px 22px;background:linear-gradient(135deg,#1E3A5F,var(--blue));}
+.mhdr h2{font-size:15px;font-weight:700;color:#fff;}
+.mhdr h2 span{color:#93C5FD;}
+.mclose{width:30px;height:30px;border-radius:6px;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.1);color:#fff;font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+.mclose:hover{background:rgba(220,38,38,.8);}
+.mbody{overflow-y:auto;padding:18px 22px;flex:1;}
+.mor{display:flex;align-items:center;gap:9px;padding:10px 14px;background:var(--surf2);border-radius:8px;border:1px solid var(--border);cursor:pointer;margin-bottom:5px;}
+.mor:hover{background:var(--redl);border-color:#FECACA;}
+.mor-id{font-size:12px;font-weight:700;color:var(--blue);min-width:140px;font-family:monospace;}
+.mor-meta{flex:1;font-size:11px;color:var(--t2);}
+.mor-age{font-size:11px;font-weight:800;padding:3px 9px;border-radius:20px;background:var(--redl);color:var(--red);border:1px solid #FECACA;}
+.umodal{background:var(--surface);border-radius:var(--rl);box-shadow:var(--lg);width:100%;max-width:900px;max-height:88vh;display:flex;flex-direction:column;overflow:hidden;}
+.usum{padding:14px 22px;border-bottom:1px solid var(--border);display:flex;gap:20px;align-items:center;background:var(--surf2);}
+.ustat{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:700;}
+.ustat.ok{color:var(--green)}.ustat.fail{color:var(--red)}.ustat.tot{color:var(--t2);font-weight:500;}
+.ures{display:flex;align-items:flex-start;gap:10px;padding:10px 14px;border-radius:8px;margin-bottom:6px;font-size:12px;border:1px solid;}
+.ures.ok{background:#F0FDF4;border-color:#A7F3D0;}
+.ures.fail{background:var(--redl);border-color:#FECACA;}
+.ui-icon{font-size:16px;flex-shrink:0;}
+.ui-id{font-weight:700;font-size:12px;min-width:140px;font-family:monospace;color:var(--blue);}
+.ui-msg{color:var(--t2);flex:1;line-height:1.5;}
+.dlconf{background:var(--surface);border-radius:var(--rl);box-shadow:var(--lg);width:100%;max-width:480px;overflow:hidden;}
+.dlcb{padding:24px 28px;}
+.dlct{font-size:16px;font-weight:800;color:var(--t1);margin-bottom:8px;}
+.dlcm{font-size:13px;color:var(--t2);line-height:1.6;margin-bottom:20px;}
+.dlcbtns{display:flex;gap:10px;flex-wrap:wrap;}
+.dlc-y{padding:10px 20px;border-radius:7px;background:var(--blue);color:#fff;border:none;font-size:13px;font-weight:700;cursor:pointer;flex:1;}
+.dlc-n{padding:10px 20px;border-radius:7px;background:var(--surf2);color:var(--t2);border:1.5px solid var(--border);font-size:13px;font-weight:700;cursor:pointer;}
+.emp{text-align:center;padding:48px;color:var(--t3);font-size:13px;}
+.emp-i{font-size:32px;margin-bottom:8px;}
+.toast{position:fixed;bottom:24px;right:24px;padding:12px 20px;border-radius:10px;font-size:13px;font-weight:600;z-index:9999;box-shadow:var(--md);transition:opacity .35s;color:#fff;}
+#home-btn{position:fixed;bottom:24px;left:24px;z-index:300;background:var(--blue);color:#fff;border:none;padding:9px 18px;border-radius:24px;font-size:13px;font-weight:600;cursor:pointer;box-shadow:0 4px 14px rgba(37,99,235,.35);display:none;align-items:center;gap:5px;}
+#home-btn.vis{display:flex;}
+.hmod{background:var(--surface);border-radius:var(--rl);box-shadow:var(--lg);width:100%;max-width:680px;max-height:80vh;display:flex;flex-direction:column;overflow:hidden;}
+.htx{display:flex;align-items:flex-start;gap:10px;padding:10px 14px;border-radius:8px;border:1px solid var(--border);margin-bottom:6px;font-size:12px;background:var(--surf2);}
+.htx-ts{font-size:10px;color:var(--t3);min-width:110px;}
+.htx-user{font-size:11px;font-weight:700;color:var(--blue);min-width:80px;}
+.htx-body{flex:1;line-height:1.6;}
+@media(max-width:1100px){.kgrid{grid-template-columns:repeat(3,1fr);}.chgrid{grid-template-columns:repeat(2,1fr);}.chgrid .sp3{grid-column:1/-1;}}
+@media(max-width:900px){
+  .kgrid{grid-template-columns:repeat(2,1fr);}.age-strip{grid-template-columns:1fr 1fr;}.cgrid{grid-template-columns:repeat(2,1fr);}
+  .chgrid{grid-template-columns:1fr;}.chgrid .sp3{grid-column:1;}
+  .hdr{height:auto;min-height:56px;flex-wrap:wrap;padding:8px 16px;gap:6px;}
+  .hdr-r{width:100%;justify-content:flex-end;flex-wrap:wrap;}
+  .fbar{gap:6px;padding:8px 12px;}
+  .fg select,.fg input[type=date]{min-width:90px;font-size:11px;}.fg label{font-size:10px;}
+  .qc-tabs button{padding:4px 8px;font-size:11px;}.hbtn{font-size:11px;padding:4px 10px;}
+  .main{padding:12px 14px;}
+}
+@media(max-width:680px){
+  .kgrid{grid-template-columns:1fr 1fr;gap:8px;}.kv{font-size:22px;}
+  .age-strip{grid-template-columns:1fr;}.cgrid{grid-template-columns:1fr;}
+  .fbar{flex-direction:column;align-items:flex-start;gap:6px;}
+  .fdiv{display:none;}
+  .fg{width:100%;}
+  .fg select,.fg input[type=date]{width:100%;min-width:unset;max-width:100%;}
+  .dl-bar{flex-wrap:wrap;gap:6px;padding:8px 12px;}.dlb{font-size:11px;padding:4px 10px;}
+  .thdr{flex-direction:column;align-items:flex-start;gap:6px;padding:10px 14px;}
+  .thdr-r{flex-wrap:wrap;gap:4px;width:100%;}
+  .tsch-w,.tsch-w input{width:100%;}
+  table{font-size:12px;}th,td{padding:8px 10px;}
+  .chgrid{gap:8px;}.sbar{flex-wrap:wrap;gap:8px;}.sbtn,.clrall{flex:1;}
+  .cd-hdr{flex-direction:column;align-items:flex-start;gap:8px;}.cd-r{flex-wrap:wrap;gap:6px;}
+  .pag{padding:8px 12px;}
+  #home-btn{bottom:16px;left:16px;font-size:12px;padding:7px 14px;}
+}
+@media(max-width:420px){
+  .kgrid{grid-template-columns:1fr;}.upill{display:none;}.hdr-title{font-size:13px;}
+  .cgrid{grid-template-columns:1fr;}.age-strip{grid-template-columns:1fr;}
+}
+</style>
+</head>
+<body>
+<div id="login-screen">
+  <div class="l-chip lc1"><div class="l-chip-dot red"></div><div class="l-chip-lines"><div class="l-chip-line" style="width:32px"></div><div class="l-chip-line" style="width:22px"></div></div><div class="l-chip-lbl">High Ageing</div></div>
+  <div class="l-chip lc2"><div class="l-chip-dot green"></div><div class="l-chip-lines"><div class="l-chip-line" style="width:28px"></div><div class="l-chip-line" style="width:18px"></div></div><div class="l-chip-lbl">COD Collected</div></div>
+  <div class="l-chip lc3"><div class="l-chip-dot amber"></div><div class="l-chip-lines"><div class="l-chip-line" style="width:26px"></div><div class="l-chip-line" style="width:16px"></div></div><div class="l-chip-lbl">Recoverable</div></div>
+  <div class="l-chip lc4" style="flex-direction:column;align-items:flex-start;gap:2px;min-width:130px;"><div class="l-chip-sub">Recoverable GMV</div><div class="l-chip-num">Rs.1.2L</div></div>
+  <div class="l-chip lc5" style="flex-direction:column;align-items:flex-start;gap:2px;min-width:130px;"><div class="l-chip-sub">Active RTOs</div><div class="l-chip-num">247</div></div>
+  <div class="l-chip lc6" style="flex-direction:column;align-items:flex-start;gap:2px;min-width:130px;"><div class="l-chip-sub" style="color:rgba(255,200,100,.75)">Action Pending</div><div class="l-chip-num" style="color:#FBBF24;">18</div></div>
+  <div class="l-watermark"><div class="l-wm-title">TATA 1mg</div><div class="l-wm-sub">Together bringing trust to healthcare</div></div>
+  <div class="lcard">
+    <div id="login-form">
+      <div class="l-head"><div class="l-icon">&#128667;</div><div><div class="l-title">RTO Dashboard</div><div class="l-sub">Update your RTO orders here</div></div></div>
+      <div class="l-div"></div>
+      <label class="lbl" for="l-email">Email address</label>
+      <div class="linp-wrap"><input class="finp" type="email" id="l-email" placeholder="you@1mg.com" onkeydown="if(event.key==='Enter')doLogin()"/></div>
+      <label class="lbl" for="l-pwd">Password</label>
+      <div class="linp-wrap"><input class="finp pwd-field" type="password" id="l-pwd" placeholder="Your city password" onkeydown="if(event.key==='Enter')doLogin()"/><button class="pwd-toggle" type="button" onclick="togglePwd('l-pwd',this)" tabindex="-1">&#128065;</button></div>
+      <button class="lbtn" id="l-btn" onclick="doLogin()">Sign In &rarr;</button>
+      <div class="lerr" id="l-err"></div>
+      <div class="lhint"><a href="#" onclick="showReset();return false">Forgot password?</a></div>
+    </div>
+    <div id="reset-form" class="hide">
+      <div class="l-head"><div class="l-icon">&#128274;</div><div><div class="l-title">Reset Password</div><div class="l-sub">We'll send your password to your email</div></div></div>
+      <div class="l-div"></div>
+      <label class="lbl" for="r-email">Registered email</label>
+      <div class="linp-wrap"><input class="finp" type="email" id="r-email" placeholder="you@1mg.com" onkeydown="if(event.key==='Enter')doReset()"/></div>
+      <button class="lbtn" id="r-btn" onclick="doReset()">Send Password &rarr;</button>
+      <div class="lerr" id="r-err"></div>
+      <div class="lhint"><a href="#" onclick="showLogin();return false">&larr; Back to Sign In</a></div>
+    </div>
+  </div>
+</div>
+<div class="edit-warn-popup hide" id="edit-warn"><span>&#9888;</span><span id="edit-warn-msg"></span></div>
+<div class="mbg hide" id="upload-modal" onclick="if(event.target===this)closeUpload()">
+  <div class="umodal">
+    <div class="mhdr"><h2 id="upload-title">Upload Results</h2><button class="mclose" onclick="closeUpload()">&#10005;</button></div>
+    <div class="usum" id="usum"></div>
+    <div class="mbody" id="ubody"></div>
+    <div style="padding:14px 22px;border-top:1px solid var(--border);display:flex;gap:10px;align-items:center;justify-content:space-between;background:var(--surf2);">
+      <div id="usave-badge" style="display:none;align-items:center;justify-content:center;gap:10px;">
+        <div style="width:52px;height:52px;border-radius:50%;background:var(--green);display:flex;align-items:center;justify-content:center;box-shadow:0 2px 10px rgba(5,150,105,.35);">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        </div>
+        <div>
+          <div id="usave-badge-count" style="font-size:22px;font-weight:800;color:var(--green);line-height:1;"></div>
+          <div style="font-size:11px;color:var(--t3);font-weight:600;">orders saved &amp; live</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;margin-left:auto;">
+        <button onclick="closeUpload()" style="padding:8px 20px;border-radius:7px;border:1.5px solid var(--border);background:var(--surface);font-size:13px;font-weight:600;cursor:pointer;color:var(--t2);">Close</button>
+        <button id="usave-btn" onclick="saveUploadChanges()" style="display:none;padding:8px 22px;border-radius:7px;background:var(--green);color:#fff;border:none;font-size:13px;font-weight:700;cursor:pointer;">&#10003; Save Valid Updates</button>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="mbg hide" id="hist-modal" onclick="if(event.target===this)closeHist()">
+  <div class="hmod">
+    <div class="mhdr"><h2>Order History <span id="hist-id"></span></h2><button class="mclose" onclick="closeHist()">&#10005;</button></div>
+    <div class="mbody" id="hist-body"></div>
+  </div>
+</div>
+<div id="ov" class="hide">
+  <div class="ov-card">
+    <div class="ov-ring"></div>
+    <div class="ov-msg" id="ov-msg">Loading&hellip;</div>
+    <div class="ov-dots"><div class="ov-dot"></div><div class="ov-dot"></div><div class="ov-dot"></div></div>
+    <div class="ov-sub" id="ov-sub"></div>
+  </div>
+</div>
+<div class="mbg hide" id="ha-modal" onclick="if(event.target===this)closeHA()">
+  <div class="modal"><div class="mhdr"><h2>High Ageing <span>(&ge;6 days)</span></h2><button class="mclose" onclick="closeHA()">&#10005;</button></div><div class="mbody" id="ha-body"></div></div>
+</div>
+<div class="mbg hide" id="ap-modal" onclick="if(event.target===this)closeAP()">
+  <div class="modal" style="max-width:960px"><div class="mhdr"><h2>Action Pending Queue</h2><button class="mclose" onclick="closeAP()">&#10005;</button></div><div class="mbody" id="ap-body"></div></div>
+</div>
+<div class="mbg hide" id="cr-modal" onclick="if(event.target===this)closeCR()">
+  <div class="modal" style="max-width:860px">
+    <div class="mhdr"><h2>Closure Remarks Breakdown</h2><button class="mclose" onclick="closeCR()">&#10005;</button></div>
+    <div class="mbody" id="cr-body">
+      <div style="display:flex;gap:0;margin-bottom:16px;border-bottom:2px solid var(--border);">
+        <button id="cr-tab-1" onclick="setCRTab(1)" style="padding:8px 20px;font-size:12px;font-weight:700;border:none;background:none;cursor:pointer;border-bottom:2px solid var(--blue);color:var(--blue);margin-bottom:-2px;">Closure Remarks &amp; Loss/Lost</button>
+        <button id="cr-tab-2" onclick="setCRTab(2)" style="padding:8px 20px;font-size:12px;font-weight:700;border:none;background:none;cursor:pointer;color:var(--t3);">COD Collected &amp; CN Received</button>
+      </div>
+      <div id="cr-pane-1"></div>
+      <div id="cr-pane-2" style="display:none;"></div>
+    </div>
+  </div>
+</div>
+<div class="mbg hide" id="loss-modal" onclick="if(event.target===this)closeLossModal()">
+  <div class="modal" style="max-width:680px">
+    <div class="mhdr">
+      <h2>Loss / Lost Orders <span id="loss-modal-count"></span></h2>
+      <button class="mclose" onclick="closeLossModal()">&#10005;</button>
+    </div>
+    <div style="display:flex;gap:10px;padding:14px 22px;border-bottom:1px solid var(--border);background:var(--surf2);flex-wrap:wrap;align-items:center;">
+      <button onclick="triggerDl('loss')" style="padding:8px 18px;border-radius:7px;background:var(--blue);color:#fff;border:none;font-size:13px;font-weight:700;cursor:pointer;">&#11015; Download Loss Report</button>
+      <button onclick="openLossRecoveryUpload()" style="padding:8px 18px;border-radius:7px;background:var(--green);color:#fff;border:none;font-size:13px;font-weight:700;cursor:pointer;">&#11014; Upload Recovery</button>
+      <span id="loss-admin-btn"></span>
+      <input type="file" id="loss-recovery-file" accept=".xlsx,.xls" style="display:none" onchange="handleLossRecovery(this)"/>
+    </div>
+    <div class="mbody" id="loss-modal-body"><div class="emp"><div class="emp-i">&#8987;</div>Loading&hellip;</div></div>
+  </div>
+</div>
+<div class="mbg hide" id="dl-modal" onclick="if(event.target===this)closeDlConf()">
+  <div class="dlconf">
+    <div class="mhdr"><h2>Confirm Download</h2><button class="mclose" onclick="closeDlConf()">&#10005;</button></div>
+    <div class="dlcb"><div class="dlct" id="dlct"></div><div class="dlcm" id="dlcm"></div>
+      <div class="dlcbtns">
+        <button class="dlc-y" onclick="dlGo('complete')">&#11015; Full Dataset</button>
+        <button class="dlc-y" onclick="dlGo('corrective')" style="background:var(--purple)">&#8635; Corrective (Mismatch only)</button>
+        <button class="dlc-n" onclick="closeDlConf()">&#10005; Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+<button id="home-btn" onclick="goHome()">&#8593; Home</button>
+<button id="reopen-btn" onclick="reopenDet()" style="position:fixed;bottom:24px;left:24px;z-index:300;background:var(--blue);color:#fff;border:none;padding:9px 18px;border-radius:24px;font-size:13px;font-weight:600;cursor:pointer;box-shadow:0 4px 14px rgba(37,99,235,.35);display:none;align-items:center;gap:5px;">&#8595; Open Orders</button>
+<div id="dash" style="display:none">
+  <div class="hdr">
+    <div class="hdr-brand"><div class="hdr-icon">&#128667;</div><div class="hdr-title">RTO Operations</div><span class="live-pill">LIVE</span></div>
+    <span class="asof" id="asof"></span>
+    <div class="hdr-r">
+      <span class="upill" id="upill"></span>
+      <div class="qc-tabs" id="qc-tabs">
+        <button data-v="Overall" class="on" onclick="setQC('Overall')">Overall</button>
+        <button data-v="QC" onclick="setQC('QC')">QC</button>
+        <button data-v="Non-QC" onclick="setQC('Non-QC')">Non-QC</button>
+      </div>
+      <button class="hbtn danger" onclick="logout()">Sign Out</button>
+    </div>
+  </div>
+  <div class="dl-bar hide" id="adl-bar">
+    <span class="dl-lbl">&#11015; Downloads</span>
+    <button class="dlb dlb-pi" onclick="triggerDl('panIndia')">&#11015; PAN India</button>
+    <button class="dlb dlb-flt" id="dlbflt" onclick="triggerDl('filtered')" disabled>&#9660; Filtered</button>
+    <button class="dlb dlb-loss" onclick="triggerDl('loss')">&#11015; Loss Report</button>
+    <div style="margin-left:auto;display:flex;gap:8px;align-items:center;">
+      <button class="fbtn btn-rst" onclick="rstF()">&#10005; Reset</button>
+      <button class="fbtn btn-ref" id="btn-ref" onclick="fref()">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>Refresh
+      </button>
+    </div>
+  </div>
+  <div class="fbar">
+    <div class="fg"><label>City</label><select id="f-city" onchange="onCityFilter()"><option value="">All Cities</option></select></div>
+    <div class="fg"><label>Partner</label><select id="f-partner"><option value="">All</option><option>INHOUSE</option><option>3PL</option></select></div>
+    <div class="fg"><label>BU</label><select id="f-bu"><option value="">All</option><option>E-Pharma</option><option>PSP</option></select></div>
+    <div class="fg"><label>Store</label><select id="f-store"><option value="">All</option><option value="WAREHOUSE">Warehouse</option><option value="RETAIL">Retail</option></select></div>
+    <div class="fg"><label>Stage</label><select id="f-stage"><option value="">All</option><option>Pre MDQ</option><option>Post MDQ</option></select></div>
+    <div class="fg"><label>Ageing</label><select id="f-age"><option value="">All</option><option value="Pending">0&ndash;2 Days</option><option value="Recoverable">3&ndash;5 Days</option><option value="High Ageing">High Ageing &ge;6d</option></select></div>
+    <div class="fg" id="fgact"><label>Action</label><select id="f-act"><option value="">All</option></select></div>
+    <div class="fdiv"></div>
+    <div class="fg"><label>From</label><input type="date" id="f-from"/></div>
+    <div class="fg"><label>To</label><input type="date" id="f-to"/></div>
+    <div class="fdiv"></div>
+    <div id="filter-spinner"><div class="fspin"></div>Loading&hellip;</div>
+    <button class="fbtn" style="background:var(--blue);border-color:var(--blue);color:#fff;" onclick="apF()">&#10003; Submit</button>
+  </div>
+  <div class="main" id="main-top">
+    <div class="sec">
+      <div class="sec-hd"><span class="sec-ttl" id="kpi-ttl">PAN India Overview</span><div class="sec-ln"></div></div>
+      <div class="kgrid">
+        <div class="kpi ab"><div class="ki">&#128230;</div><div class="kl">Total RTO</div><div class="kv" id="k-tot">&mdash;</div><div class="ks" id="k-tots">&mdash;</div></div>
+        <div class="kpi ag"><div class="ki">&#9989;</div><div class="kl">SRN Completed</div><div class="kv" id="k-gr">&mdash;</div><div class="ks" id="k-grs">Visible 24h then removed</div></div>
+        <div class="kpi pu click" onclick="openCRModal()"><div class="ki">&#128203;</div><div class="kl">Closure Remarks</div><div class="kv" id="k-cr">&mdash;</div><div class="ks" id="k-crs">Awaiting SRN closure</div><div class="kh">Click to view breakdown</div></div>
+        <div class="kpi aa"><div class="ki">&#9888;</div><div class="kl">Action Pending</div><div class="kv" id="k-ap">&mdash;</div><div class="ks" id="k-aps">Needs immediate update</div></div>
+        <div class="kpi ap click" id="k-ls-card" onclick="openLossModal()"><div class="ki">&#128176;</div><div class="kl">Total Loss / Lost</div><div class="kv" id="k-ls">&mdash;</div><div class="ks" id="k-lss">Gross: &mdash;</div><div class="kh">Click to view options</div></div>
+        <div class="kpi click" id="k-cr-ha-card" onclick="dlCRHighAgeing()" style="display:none;--acc:#7B1034;background:#FDF2F5;border-color:#F0C4D0;"><div class="ki" style="background:#F7D6E0;">&#9201;</div><div class="kl" style="color:#7B1034;">Closure Remarks &gt;10 Days</div><div class="kv" id="k-cr-ha" style="color:#7B1034;font-weight:900;">&mdash;</div><div class="ks" id="k-cr-ha-sub" style="color:#9B3050;font-weight:700;">Ageing &gt;10 days</div><div class="kh" style="color:#9B3050;">Click to download report</div></div>
+      </div>
+    </div>
+    <div class="sec">
+      <div class="sec-hd"><span class="sec-ttl">Ageing Breakdown</span><div class="sec-ln"></div><span class="sec-nt">% of Action Pending &middot; From cancellation date</span></div>
+      <div class="age-strip">
+        <div class="age-card p"><div class="age-ring" id="ag-pp">0%</div><div class="age-info"><div class="age-lbl">0&ndash;2 Days</div><div class="age-cnt" id="ag-pc">0</div><div class="age-amt" id="ag-pa">&#8377;0</div><div class="age-bar"><div class="age-fill" id="ag-pb" style="width:0"></div></div></div></div>
+        <div class="age-card rv"><div class="age-ring" id="ag-rp">0%</div><div class="age-info"><div class="age-lbl">&gt;2 Days</div><div class="age-cnt" id="ag-rc">0</div><div class="age-amt" id="ag-ra">&#8377;0</div><div class="age-bar"><div class="age-fill" id="ag-rb" style="width:0"></div></div></div></div>
+        <div class="age-card ha"><div class="age-ring" id="ag-hp">0%</div><div class="age-info"><div class="age-lbl">&gt;5 Days <small style="font-size:9px;opacity:.65;">(subset of &gt;2)</small></div><div class="age-cnt" id="ag-hc">0</div><div class="age-amt" id="ag-ha">&#8377;0</div><div class="age-bar"><div class="age-fill" id="ag-hb" style="width:0"></div></div></div></div>
+      </div>
+    </div>
+    <div class="sec" id="city-perf-sec">
+      <div class="sec-hd"><span class="sec-ttl">City Performance</span><div class="sec-ln"></div><span class="sec-nt" id="city-sec-note">Red = &gt;threshold active &middot; Click to drill down</span></div>
+      <div class="cgrid" id="cgrid"></div>
+    </div>
+    <div id="cdet">
+      <div class="cd-hdr">
+        <div class="cd-ttl" id="cd-ttl"></div>
+        <div class="cd-r">
+          <span id="cd-dl-btns"></span>
+          <button onclick="triggerUpload()" id="upload-btn" style="padding:6px 14px;border-radius:var(--rs);font-size:12px;font-weight:600;cursor:pointer;border:1.5px solid #D8B4FE;background:var(--purplel);color:var(--purple);">&#11014; Upload</button>
+          <input type="file" id="upload-file" accept=".xlsx,.xls" style="display:none" onchange="handleUpload(this)"/>
+          <button onclick="closeDet()" style="padding:6px 13px;border-radius:var(--rs);font-size:12px;font-weight:600;cursor:pointer;border:1.5px solid var(--border);background:var(--surf2);color:var(--t2);">&#10005; Close</button>
+        </div>
+      </div>
+      <div class="ap-fbar">
+        <label style="font-size:12px;font-weight:600;color:var(--amber);">&#9888; Action Pending</label>
+        <button class="apfb" id="ap-tog" onclick="togAP()">Show Only Action Pending</button>
+        <span class="ap-cnt" id="ap-cnt">0 pending</span>
+      </div>
+      <div class="kgrid" id="cd-kpis" style="margin-bottom:16px;"></div>
+      <div class="age-strip" id="cd-age-strip" style="display:none;margin-bottom:16px;"></div>
+      <div id="pivot-wrap" style="display:none;margin-bottom:16px;"></div>
+    </div>
+    <div class="sec">
+      <div class="sec-hd"><span class="sec-ttl">Analytics</span><div class="sec-ln"></div></div>
+      <div class="chgrid">
+        <div class="chcard"><div class="chhd"><h3>Ageing Brackets</h3></div><canvas id="ch-ag"></canvas></div>
+        <div class="chcard"><div class="chhd"><h3>Status</h3></div><canvas id="ch-st"></canvas></div>
+        <div class="chcard"><div class="chhd"><h3>Action Distribution</h3></div><canvas id="ch-ac"></canvas></div>
+        <div class="chcard"><div class="chhd"><h3>Service Type Split</h3></div><canvas id="ch-qc"></canvas></div>
+      </div>
+    </div>
+    <div class="sec">
+      <div class="sec-hd"><span class="sec-ttl">Order Details</span><div class="sec-ln"></div></div>
+      <div class="twrap">
+        <div class="thdr">
+          <h3>Active Orders</h3>
+          <div class="tsch-w"><span class="tsch-icon">&#128269;</span><input id="tsch" placeholder="Search Order ID / City&hellip;" oninput="onSearch()"/></div>
+          <div class="thdr-r">
+            <button class="apbtn" id="gapbtn" onclick="togGAP()">&#9888; Action Pending <span class="apn" id="gapc">0</span></button>
+            <button class="qbtn" onclick="openAPModal()">Queue</button>
+            <button class="qbtn" onclick="downloadAP()" title="Download AP queue">&#11015;</button>
+            <span class="tmeta" id="tcnt">&mdash; orders</span>
+          </div>
+        </div>
+        <div class="tscroll">
+          <table>
+            <thead><tr>
+              <th style="min-width:165px">Order ID</th>
+              <th>City</th><th>GMV</th><th>Store</th><th>Partner</th>
+              <th>BU</th><th>Stage</th><th>SRN</th><th>Service</th>
+              <th style="min-width:240px">Action</th>
+              <th style="min-width:220px">Update</th>
+            </tr></thead>
+            <tbody id="tbody"></tbody>
+          </table>
+          <div id="temp" class="emp" style="display:none"><div class="emp-i">&#128269;</div>No orders match.</div>
+          <div id="tload" class="emp" style="display:none"><div class="emp-i">&#8987;</div>Loading orders&hellip;</div>
+        </div>
+        <div class="sbar hide" id="sbar">
+          <span class="scnt" id="scnt">0 changes</span>
+          <button class="sbtn" id="sbtn" onclick="saveAll()">&#10003; Save All</button>
+          <button class="clrall" onclick="clearAll()">&#10005; Clear All</button>
+          <span style="font-size:12px;color:rgba(255,255,255,.8);" id="sst"></span>
+        </div>
+        <div class="pag">
+          <button id="btn-pv" onclick="chPg(-1)">&larr; Prev</button>
+          <span class="pagi" id="pgi">Page 1 of 1</span>
+          <button id="btn-nx" onclick="chPg(1)">Next &rarr;</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+
+const API='https://script.google.com/macros/s/AKfycbxUZmiclu54QZZXFsa2hM7IlSipWExJnUfCTAaXUQoNIMpNM1szWbg_81B9l-32KB8/exec';
+const LC_KEY='rto_sum_v2343';
+const LC_TTL=20*60*1000;  // 20 min (was 15)
+const PAGE_SZ=100;
+
+let USER=null,SUM=null,TRD=[],ORDERS=[],CHANGES={},PG=1,TOTAL_PGS=1,SCITY='',QF='Overall',GAP=false,APF=false,ORDERS_LOADING=false,ALL_ACTIONS=[],_charts={},_uplBatch=null;
+
+function $(id,v){if(v!=null){const el=document.getElementById(id);if(el)el.textContent=v;}else return document.getElementById(id);}
+function setHTML(id,html){const el=document.getElementById(id);if(el)el.innerHTML=html;}
+function fmtN(n){if(!n&&n!==0)return '—';if(n>=1e7)return '₹'+(n/1e7).toFixed(2)+'Cr';if(n>=1e5)return '₹'+(n/1e5).toFixed(1)+'L';if(n>=1000)return '₹'+(n/1000).toFixed(1)+'K';return '₹'+n.toFixed(0);}
+function fmtPct(p){return p%1===0?p+'%':p.toFixed(1)+'%';}
+function pct(n,d){return d?Math.round(n/d*100):0;}
+function fmtD(d){if(!d)return '—';try{const dt=new Date(d);return dt.toLocaleDateString('en-IN',{day:'2-digit',month:'short'})}catch{return d;}}
+function toast(msg,type='green'){const t=document.createElement('div');t.className='toast';t.style.background=type==='red'?'#DC2626':type==='amber'?'#D97706':'#059669';t.textContent=msg;document.body.appendChild(t);setTimeout(()=>{t.style.opacity='0';setTimeout(()=>t.remove(),350)},2800);}
+function showOv(msg,sub=''){$('ov-msg',msg);$('ov-sub',sub||'');$('ov').classList.remove('hide');}
+function hideOv(){$('ov').classList.add('hide');}
+function showFSpin(){$('filter-spinner').classList.add('vis');}
+function hideFSpin(){$('filter-spinner').classList.remove('vis');}
+function togglePwd(id,btn){const el=$(id);el.type=el.type==='password'?'text':'password';btn.textContent=el.type==='password'?'👁':'🙈';}
+function showReset(){$('login-form').classList.add('hide');$('reset-form').classList.remove('hide');}
+function showLogin(){$('reset-form').classList.add('hide');$('login-form').classList.remove('hide');}
+
+async function doLogin(){
+  const email=($('l-email').value||'').trim().toLowerCase();
+  const pwd=($('l-pwd').value||'').trim();
+  $('l-err','');
+  if(!email||!pwd){$('l-err','Both fields are required.');return;}
+  $('l-btn').disabled=true;$('l-btn').textContent='Signing in…';
+  try{
+    const res=await fetch(API+'?action=login&email='+encodeURIComponent(email)+'&pwd='+encodeURIComponent(pwd)).then(r=>r.json());
+    if(res.success){
+      USER=res;
+      USER._regionSet=res.isRegionAdmin?new Set((res.regionCities||[]).map(c=>c.toUpperCase())):null;
+      localStorage.removeItem(LC_KEY);
+      $('login-screen').classList.add('hide');
+      $('upill',(res.isAdmin?'Admin':(res.cities&&res.cities.length>1?res.cities.join(' / '):res.city))+' · '+email.split('@')[0]);
+      initDash();
+    }else{$('l-err',res.error||'Invalid credentials.');$('l-btn').disabled=false;$('l-btn').textContent='Sign In →';}
+  }catch(e){$('l-err','Network error. Please retry.');$('l-btn').disabled=false;$('l-btn').textContent='Sign In →';}
+}
+async function doReset(){
+  const email=($('r-email').value||'').trim().toLowerCase();$('r-err','');
+  if(!email){$('r-err','Enter your email.');return;}
+  $('r-btn').disabled=true;$('r-btn').textContent='Sending…';
+  try{const res=await fetch(API+'?action=resetPassword&email='+encodeURIComponent(email)).then(r=>r.json());if(res.success){toast('Password sent to '+email);showLogin();}else{$('r-err',res.error||'Email not found.');}}catch{$('r-err','Network error.');}
+  $('r-btn').disabled=false;$('r-btn').textContent='Send Password →';
+}
+function logout(){
+  if(!confirm('Sign out?'))return;
+  USER=null;SUM=null;ORDERS=[];CHANGES={};SCITY='';
+  $('dash').style.display='none';$('login-screen').classList.remove('hide');
+  $('l-btn').disabled=false;$('l-btn').textContent='Sign In →';$('l-email').value='';$('l-pwd').value='';$('l-err','');
+}
+
+function initDash(){
+  $('dash').style.display='block';
+  const ia=USER?.isAdmin;const ra=isRA();
+  $('adl-bar').classList.toggle('hide',!ia&&!ra);
+  $('fgact').style.display=(ia||ra)?'none':'flex';
+  $('qc-tabs').style.display='';
+  $('city-perf-sec').style.display=(ia||ra)?'':'none';
+  if(!ia&&!ra&&USER?.city){
+    const _isMulti=USER.cities&&USER.cities.length>1;
+    const _primaryCity=USER.city;
+    SCITY=_isMulti?'':_primaryCity.toUpperCase();
+    const _multiLabel=_isMulti?USER.cities.join(' / '):_primaryCity;
+    $('kpi-ttl',_multiLabel+' Overview');
+    const _cd=$('cdet');if(_cd){_cd.classList.add('vis');_cd.style.display='block';}
+    $('cd-ttl',_multiLabel+' Orders');
+    const _dlD=$('cd-dl-btns');
+    if(_dlD)_dlD.innerHTML=`<button onclick="triggerCityDl('${_primaryCity}')" style="padding:6px 14px;border-radius:var(--rs);font-size:12px;font-weight:600;cursor:pointer;border:1.5px solid #BFDBFE;background:var(--bluel);color:var(--blue);">&#11015; Download</button>`;
+    if(_isMulti){const citySel=$('f-city');if(citySel){citySel.innerHTML='<option value="">All Cities</option>';USER.cities.forEach(c=>{const o=document.createElement('option');o.value=c.toUpperCase();o.textContent=c;citySel.appendChild(o);});}}
+  }
+  if(ra)$('kpi-ttl',(USER.region||'Region')+' Overview');
+  loadSummary();
+}
+
+function _fp(){
+  const ps=[];
+  const partner=$('f-partner')?.value;const bu=$('f-bu')?.value;const store=$('f-store')?.value;
+  const stage=$('f-stage')?.value;const age=$('f-age')?.value;const act=$('f-act')?.value;
+  const fr=$('f-from')?.value;const to=$('f-to')?.value;const sch=($('tsch')?.value||'').trim();
+  if(partner)ps.push('fPartner='+encodeURIComponent(partner));
+  if(bu)ps.push('fBU='+encodeURIComponent(bu));
+  if(store)ps.push('fStore='+encodeURIComponent(store));
+  if(stage)ps.push('fStage='+encodeURIComponent(stage));
+  if(age)ps.push('fAge='+encodeURIComponent(age));
+  if(act)ps.push('fAct='+encodeURIComponent(act));
+  if(fr)ps.push('fFrom='+encodeURIComponent(fr));
+  if(to)ps.push('fTo='+encodeURIComponent(to));
+  if(sch)ps.push('fSearch='+encodeURIComponent(sch));
+  if(QF!=='Overall')ps.push('fQC='+encodeURIComponent(QF));
+  if(GAP)ps.push('fAP=1');
+  return ps.join('&');
+}
+function _cq(){return SCITY?'&fCity='+encodeURIComponent(SCITY):'';}
+function _hasFilters(){
+  if(QF!=='Overall')return true;if(SCITY)return true;
+  if(['f-partner','f-bu','f-store','f-stage','f-age','f-from','f-to'].some(id=>$(id)?.value))return true;
+  if(!USER?.isAdmin&&!isRA()&&$('f-act')?.value)return true;
+  return false;
+}
+function _updFltDlBtn(){const dlb=$('dlbflt');if(dlb)dlb.disabled=!_hasFilters();}
+
+function popFilters(){
+  if(!USER?.isAdmin&&ALL_ACTIONS.length){
+    const sel=$('f-act');if(!sel)return;
+    sel.innerHTML='<option value="">All</option>';
+    ALL_ACTIONS.forEach(a=>{const o=document.createElement('option');o.value=a;o.textContent=a;sel.appendChild(o);});
+  }
+  const citySel=$('f-city');
+  if(citySel&&(USER?.isAdmin||isRA())&&SUM?.allCities){
+    citySel.innerHTML='<option value="">All Cities</option>';
+    let cityList=(SUM.allCities||[]).sort();
+    if(isRA())cityList=cityList.filter(c=>inRegion(c));
+    cityList.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;citySel.appendChild(o);});
+  }
+}
+
+function loadSummary(){
+  try{
+    const raw=localStorage.getItem(LC_KEY);
+    if(raw){const{data,ts}=JSON.parse(raw);if(Date.now()-ts<LC_TTL&&data&&data.success){SUM=data;TRD=data.trend||[];_renderSummary(data);loadOrders();return;}}
+  }catch(e){}
+  /* PERF: for city users, summary + orders load in parallel (cuts perceived load ~40%) */
+  showOv('Loading RTO data…','Please wait');
+  const sumEp=API+'?action=getSummary&email='+encodeURIComponent(USER?.email||'')+_cq();
+  const ordEp=API+'?action=getOrders&email='+encodeURIComponent(USER?.email||'')+'&page=1&ps='+PAGE_SZ+_cq()+'&'+_fp();
+  const isCityUser=!USER?.isAdmin&&!isRA()&&USER?.city;
+  if(isCityUser){
+    // Parallel: both requests fly at once
+    Promise.all([
+      fetch(sumEp).then(r=>r.json()).catch(()=>null),
+      fetch(ordEp).then(r=>r.json()).catch(()=>null)
+    ]).then(([sd,od])=>{
+      hideOv();
+      if(sd&&sd.success){SUM=sd;TRD=sd.trend||[];localStorage.setItem(LC_KEY,JSON.stringify({data:sd,ts:Date.now()}));_renderSummary(sd);}
+      else{toast('Failed to load summary','amber');}
+      if(od&&od.success){ORDERS_LOADING=false;$('tload').style.display='none';_renderOrders(od);}
+      else if(od){toast(od.error||'Failed to load orders','red');}
+    }).catch(e=>{hideOv();toast('Load error: '+e.message,'red');});
+  } else {
+    // Sequential for admin/region admin (they need summary cities list first)
+    fetch(sumEp).then(r=>r.json()).then(sd=>{
+      hideOv();if(!sd||!sd.success){toast('Failed to load summary','amber');return;}
+      SUM=sd;TRD=sd.trend||[];
+      localStorage.setItem(LC_KEY,JSON.stringify({data:sd,ts:Date.now()}));
+      _renderSummary(sd);loadOrders();
+    }).catch(e=>{hideOv();toast('Load error: '+e.message,'red');});
+  }
+}
+
+function _renderSummary(sd){
+  const _asofDate=sd.asOf?new Date(sd.asOf):new Date();
+  const _minsAgo=Math.round((Date.now()-_asofDate.getTime())/60000);
+  $('asof','As of '+fmtD(sd.asOf||new Date().toISOString())+' · synced '+(_minsAgo<=1?'just now':_minsAgo+' min ago'));
+  try{rdKPI(sd.kpi||{});}catch(e){console.error('rdKPI',e);}
+  try{rdAgeing(sd.kpi||{});}catch(e){console.error('rdAgeing',e);}
+  if(sd.allActions&&sd.allActions.length){ALL_ACTIONS=sd.allActions;popFilters();}
+  if(sd.allCities&&sd.allCities.length){popFilters();}
+  try{if(USER?.isAdmin||isRA())rdCityCards(sd.homepageCards||[]);if(!USER?.isAdmin&&!isRA()){const cps=$('city-perf-sec');if(cps)cps.style.display='none';}}catch(e){console.error('rdCityCards',e);}
+  try{rdChartsKPI(sd.kpi||{});}catch(e){console.error('rdChartsKPI',e);}
+  _updFltDlBtn();
+}
+
+function rdKPI(k){
+  const _kTotal=k.totalRTO||0;const _base=_kTotal||1;
+  const _srnN=k.srnCompleted||0;const _crN=k.closureRemarks||0;
+  const _apN=Math.max(0,_kTotal-_srnN-_crN);
+  $('k-tot',_kTotal.toLocaleString('en-IN'));$('k-tots',fmtN(k.totalAmount||0)+' total GMV');
+  $('k-gr',parseFloat((_srnN/_base*100).toFixed(1))+'%');
+  const _grs=document.getElementById('k-grs');if(_grs)_grs.textContent='('+_srnN+' orders) · '+fmtN(k.srnAmt||0);
+  $('k-cr',parseFloat((_crN/_base*100).toFixed(1))+'%');
+  $('k-crs','('+_crN+' total) · '+(k.srnPendingCR||0)+' SRN pending · '+fmtN(k.crAmt||0));
+  $('k-ap',parseFloat((_apN/_base*100).toFixed(1))+'%');$('k-aps','('+_apN+' orders) · '+fmtN(k.apAmt||0));
+  const _lossNet=k.lossNetAmount||k.lossTotal||0;const _lossRec=k.recoveredAmount||0;
+  $('k-ls',_lossNet?fmtN(_lossNet):'₹0');$('k-lss','Gross: '+fmtN(k.lossTotal||0)+(_lossRec?' · Rec: '+fmtN(_lossRec):''));
+  $('gapc',_apN);
+  const crHACount=k.crHighAgeing||0;const crLACount=k.crLowAgeing||0;const crWHRTTotal=crHACount+crLACount;
+  const crHACard=$('k-cr-ha-card');if(crHACard)crHACard.style.display=(crWHRTTotal>0||(k.srnPendingCR||0)>0)?'':'none';
+  $('k-cr-ha',crHACount>0?crHACount:crWHRTTotal);
+  const crHASub=$('k-cr-ha-sub');if(crHASub){if(crHACount>0&&crLACount>0)crHASub.textContent=crLACount+' orders ≤10 days';else if(crHACount>0)crHASub.textContent='All WH/Retail CRs exceed 10 days';else crHASub.textContent='Bust cache to refresh ageing';}
+}
+
+function rdAgeing(k){
+  const t=(k.actionPending>0?k.actionPending:((k.pending||0)+(k.moreThan2||0)+(k.highAgeing||0)))||1;
+  const _more2=(k.moreThan2||0)+(k.highAgeing||0);const _more2Amt=(k.moreThan2Amt||0)+(k.highAgeingAmt||0);
+  const pp=parseFloat(Math.min(100,(k.pending||0)/t*100).toFixed(1));
+  const rp=parseFloat(Math.min(100,_more2/t*100).toFixed(1));
+  const hp=parseFloat(Math.min(100,(k.highAgeing||0)/t*100).toFixed(1));
+  $('ag-pp',fmtPct(pp));$('ag-pc',k.pending||0);$('ag-pa',fmtN(k.pendingAmt||0));
+  $('ag-rp',fmtPct(rp));$('ag-rc',_more2);$('ag-ra',fmtN(_more2Amt));
+  $('ag-hp',fmtPct(hp));$('ag-hc',k.highAgeing||0);$('ag-ha',fmtN(k.highAgeingAmt||0));
+  if($('ag-pb'))$('ag-pb').style.width=pp+'%';
+  if($('ag-rb'))$('ag-rb').style.width=rp+'%';
+  if($('ag-hb'))$('ag-hb').style.width=hp+'%';
+}
+
+function rdCityCards(cards){
+  const grid=$('cgrid');if(!grid)return;
+  if(!USER?.isAdmin&&!isRA()){grid.innerHTML='';return;}
+  if(isRA()) cards=cards.filter(c=>inRegion(c.city));
+  // For region admin: show ALL cities with active orders (not just above-threshold)
+  // For full admin: show only above-threshold (red) cities
+  const visibleCards=isRA()?cards:cards.filter(c=>c.isRed);
+  if(!visibleCards.length){grid.innerHTML='<div class="emp"><div class="emp-i">✅</div>No active orders in your region right now.</div>';return;}
+  grid.innerHTML=visibleCards.map(c=>{
+    const tot=c.active||1;
+    const activePct=tot?((c.actionPending||0)/tot*100).toFixed(1):0;
+    const p02Pct=tot?((c.pending02||c.pending||0)/tot*100).toFixed(1):0;
+    const p35Pct=tot?((c.midAgeing35||c.moreThan2||0)/tot*100).toFixed(1):0;
+    const ha6Pct=tot?((c.highAgeing6||c.highAgeing||0)/tot*100).toFixed(1):0;
+    const cardClass=c.isRed?'ccard red':'ccard';
+    const badge=c.isRed
+      ?`<div class="c-red-badge">▲ ${c.active||0} ACTIVE</div>`
+      :`<div style="font-size:9px;font-weight:700;color:var(--green);background:var(--greenl);border:1px solid #A7F3D0;padding:1px 7px;border-radius:20px;">${c.active||0} active</div>`;
+    return `<div class="${cardClass}" onclick="openDet('${c.city}')">
+      <div class="ctop"><div class="cname">${c.city}</div>${badge}</div>
+      <div class="cstats">
+        <div class="cs aa"><div class="csl">Action Pending</div><div class="csv">${activePct}% <span class="csv-sm">(${c.actionPending||0})</span></div></div>
+        <div class="cs p02"><div class="csl">Pending 0–2</div><div class="csv">${p02Pct}% <span class="csv-sm">(${c.pending02||c.pending||0})</span></div></div>
+        <div class="cs p35"><div class="csl">Pending 2–5</div><div class="csv">${p35Pct}% <span class="csv-sm">(${c.midAgeing35||c.moreThan2||0})</span></div></div>
+        <div class="cs ha6"><div class="csl">Pending >5</div><div class="csv">${ha6Pct}% <span class="csv-sm">(${c.highAgeing6||c.highAgeing||0})</span></div></div>
+      </div>
+      <div class="cbtns">
+        <button class="cbtn cb-dl" onclick="event.stopPropagation();triggerCityDl('${c.city}')">&#11015; Download</button>
+        <button class="cbtn cb-ap" onclick="event.stopPropagation();openCityAP('${c.city}')">&#9888; Action Pending</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function openDet(city){
+  SCITY=city;APF=false;GAP=false;$('f-city').value=city;
+  $('gapbtn').classList.remove('on');$('ap-tog')?.classList.remove('on');
+  $('cdet').classList.add('vis');$('cdet').style.display='block';
+  $('cd-ttl',city+(canEdit(city)?'':' — View Only'));
+  const dlDiv=$('cd-dl-btns');
+  if(canEdit(city)){dlDiv.innerHTML=`<button onclick="triggerCityDl('${city}')" style="padding:6px 14px;border-radius:var(--rs);font-size:12px;font-weight:600;cursor:pointer;border:1.5px solid #BFDBFE;background:var(--bluel);color:var(--blue);">↓ Download</button>`;}else{dlDiv.innerHTML='';}
+  $('upload-btn').style.display=canEdit(city)?'':'none';
+  $('cd-kpis').innerHTML='<div class="kpi ab"><div class="ki">⏳</div><div class="kl">Loading…</div><div class="kv">—</div></div>';
+  $('pivot-wrap').style.display='none';$('ap-cnt','— pending');
+  document.querySelectorAll('.ccard').forEach(el=>{const n=el.querySelector('.cname');el.classList.toggle('sel',n&&n.textContent.trim()===city);});
+  $('cdet').scrollIntoView({behavior:'smooth',block:'start'});
+  $('home-btn').classList.add('vis');
+  const rb=$('reopen-btn');if(rb)rb.style.display='none';
+  PG=1;loadOrders();
+}
+function closeDet(){
+  const _lastCity=SCITY;SCITY='';APF=false;GAP=false;
+  if(USER?.isAdmin||isRA())$('f-city').value='';
+  $('gapbtn').classList.remove('on');$('ap-tog')?.classList.remove('on');
+  $('cdet').classList.remove('vis');$('cdet').style.display='none';
+  document.querySelectorAll('.ccard').forEach(el=>el.classList.remove('sel'));
+  $('home-btn').classList.remove('vis');
+  const rb=$('reopen-btn');if(rb){rb.style.display='flex';rb.dataset.city=_lastCity||'';}
+  PG=1;SUM=null;
+  const raw=localStorage.getItem(LC_KEY);
+  if(raw){try{const{data,ts}=JSON.parse(raw);if(Date.now()-ts<LC_TTL&&data){SUM=data;TRD=data.trend||[];_renderSummary(data);loadOrders();return;}}catch(e){}}
+  loadSummary();
+}
+function reopenDet(){
+  const rb=$('reopen-btn');const lastCity=rb?rb.dataset.city:'';if(rb)rb.style.display='none';
+  if(lastCity){openDet(lastCity);}
+  else if(!USER?.isAdmin&&!isRA()&&USER?.city){
+    SCITY=USER.city.toUpperCase();$('cd-ttl',USER.city+' Orders');
+    const _dlD=$('cd-dl-btns');
+    if(_dlD)_dlD.innerHTML=`<button onclick="triggerCityDl('${USER.city}')" style="padding:6px 14px;border-radius:var(--rs);font-size:12px;font-weight:600;cursor:pointer;border:1.5px solid #BFDBFE;background:var(--bluel);color:var(--blue);">&#11015; Download</button>`;
+    $('upload-btn').style.display='';$('cdet').classList.add('vis');$('cdet').style.display='block';$('home-btn').classList.add('vis');loadOrders();
+  }
+}
+function goHome(){window.scrollTo({top:0,behavior:'smooth'});closeDet();}
+function openCityAP(city){
+  if(SCITY!==city){
+    SCITY=city;APF=false;$('f-city').value=city;
+    $('cdet').classList.add('vis');$('cdet').style.display='block';
+    $('cd-ttl',city+(canEdit(city)?'':' — View Only'));
+    const _dlDiv=$('cd-dl-btns');
+    if(canEdit(city)){_dlDiv.innerHTML=`<button onclick="triggerCityDl('${city}')" style="padding:6px 14px;border-radius:var(--rs);font-size:12px;font-weight:600;cursor:pointer;border:1.5px solid #BFDBFE;background:var(--bluel);color:var(--blue);">&#11015; Download</button>`;}else{_dlDiv.innerHTML='';}
+    $('upload-btn').style.display=canEdit(city)?'':'none';
+    $('cd-kpis').innerHTML='<div class="kpi ab"><div class="ki">&#8987;</div><div class="kl">Loading…</div><div class="kv">—</div></div>';
+    $('pivot-wrap').style.display='none';$('ap-cnt','— pending');
+    document.querySelectorAll('.ccard').forEach(el=>{const n=el.querySelector('.cname');el.classList.toggle('sel',n&&n.textContent.trim()===city);});
+    $('cdet').scrollIntoView({behavior:'smooth',block:'start'});
+  }
+  GAP=true;$('gapbtn')?.classList.add('on');$('ap-tog')?.classList.add('on');
+  PG=1;showFSpin();showOv('Filtering Action Pending orders…','Please wait');loadOrders();
+  setTimeout(()=>document.querySelector('.twrap')?.scrollIntoView({behavior:'smooth',block:'start'}),400);
+}
+
+function loadOrders(){
+  if(ORDERS_LOADING)return;ORDERS_LOADING=true;
+  $('tload').style.display='flex';$('tbody').innerHTML='';$('temp').style.display='none';
+  let ep=API+'?action=getOrders&email='+encodeURIComponent(USER?.email||'')+'&page='+PG+'&ps='+PAGE_SZ;
+  ep+=_cq();ep+='&'+_fp();
+  fetch(ep).then(r=>r.json()).then(d=>{
+    ORDERS_LOADING=false;hideFSpin();hideOv();$('tload').style.display='none';
+    if(!d||!d.success){toast(d?.error||'Failed to load orders','red');return;}
+    _renderOrders(d);
+  }).catch(e=>{ORDERS_LOADING=false;hideFSpin();hideOv();$('tload').style.display='none';toast('Network error: '+e.message,'red');});
+}
+function _renderOrders(d){
+  ORDERS_LOADING=false;ORDERS=d.orders||[];TOTAL_PGS=d.totalPages||1;
+  $('tcnt',(d.total||ORDERS.length)+' orders');$('pgi','Page '+PG+' of '+TOTAL_PGS);
+  $('btn-pv').disabled=PG<=1;$('btn-nx').disabled=PG>=TOTAL_PGS;
+  rdRows();if(SCITY)afterOrdersCity();
+}
+
+function _filterCacheKey(){return 'rto_f_'+btoa(encodeURIComponent((USER?.email||'')+'|'+_cq()+'|'+_fp())).slice(0,80);}
+function apF(){
+  PG=1;_updFltDlBtn();
+  const fKey=_filterCacheKey();
+  try{const raw=localStorage.getItem(fKey);if(raw){const{data,ts}=JSON.parse(raw);if(Date.now()-ts<LC_TTL&&data&&data.success){SUM=data;TRD=data.trend||[];if(data.allActions&&data.allActions.length){ALL_ACTIONS=data.allActions;popFilters();}rdKPI(data.kpi||{});rdAgeing(data.kpi||{});rdCityCards(data.homepageCards||[]);rdChartsKPI(data.kpi||{});loadOrders();return;}}}catch(e){}
+  showFSpin();showOv('Applying filters…','Recalculating KPIs');
+  const sumEp=API+'?action=getSummary&email='+encodeURIComponent(USER?.email||'')+_cq()+'&'+_fp();
+  fetch(sumEp).then(r=>r.json()).then(p=>{
+    hideFSpin();if(!p||!p.success){hideOv();toast((p&&p.error)||'Filter failed','red');return;}
+    SUM=p;TRD=p.trend||[];
+    try{localStorage.setItem(fKey,JSON.stringify({data:p,ts:Date.now()}));}catch(e){}
+    if(p.allActions&&p.allActions.length){ALL_ACTIONS=p.allActions;popFilters();}
+    rdKPI(p.kpi||{});rdAgeing(p.kpi||{});rdCityCards(p.homepageCards||[]);rdChartsKPI(p.kpi||{});loadOrders();
+  }).catch(e=>{hideFSpin();hideOv();toast('Filter failed: '+e.message,'red');});
+}
+function rstF(){
+  ['f-partner','f-bu','f-store','f-stage','f-age','f-act','f-from','f-to'].forEach(id=>{const el=$(id);if(el)el.value='';});
+  if(USER?.isAdmin||isRA()){$('f-city').value='';SCITY='';}
+  GAP=false;APF=false;QF='Overall';
+  document.querySelectorAll('.qc-tabs button').forEach(b=>b.classList.toggle('on',b.dataset.v==='Overall'));
+  $('gapbtn').classList.remove('on');$('ap-tog')?.classList.remove('on');
+  PG=1;_updFltDlBtn();$('cdet').classList.remove('vis');$('cdet').style.display='none';
+  document.querySelectorAll('.ccard').forEach(el=>el.classList.remove('sel'));loadSummary();
+}
+function fref(){Object.keys(localStorage).filter(k=>k.startsWith('rto_f_')||k===LC_KEY).forEach(k=>localStorage.removeItem(k));PG=1;loadSummary();}
+function onSearch(){PG=1;loadOrders();}
+function setQC(v){QF=v;document.querySelectorAll('.qc-tabs button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));PG=1;apF();}
+function onCityFilter(){
+  SCITY=$('f-city').value;CHANGES={};$('sbar').classList.add('hide');
+  if(SCITY){
+    $('cdet').classList.add('vis');$('cdet').style.display='block';
+    $('cd-ttl',SCITY+(canEdit(SCITY)?'':' — View Only'));
+    const dlDiv=$('cd-dl-btns');
+    if(canEdit(SCITY)){dlDiv.innerHTML=`<button onclick="triggerCityDl('${SCITY}')" style="padding:6px 14px;border-radius:var(--rs);font-size:12px;font-weight:600;cursor:pointer;border:1.5px solid #BFDBFE;background:var(--bluel);color:var(--blue);">&#11015; Download</button>`;}
+    $('upload-btn').style.display=canEdit(SCITY)?'':'none';$('home-btn').classList.add('vis');
+  }else{SCITY='';$('cdet').classList.remove('vis');$('cdet').style.display='none';$('home-btn').classList.remove('vis');}
+  _updFltDlBtn();
+}
+function togAP(){APF=!APF;const t=$('ap-tog');if(t)t.classList.toggle('on',APF);PG=1;loadOrders();}
+function togGAP(){GAP=!GAP;$('gapbtn').classList.toggle('on',GAP);$('ap-tog')?.classList.toggle('on',GAP);PG=1;loadOrders();}
+function chPg(d){PG=Math.max(1,Math.min(TOTAL_PGS,PG+d));loadOrders();}
+
+function afterOrdersCity(){
+  const _cc=(SUM&&SUM.homepageCards||[]).find(c=>c.city===SCITY);const _sk=SUM&&SUM.kpi;
+  const ap=_sk?(_sk.actionPending||0):ORDERS.filter(o=>o.actionPending).length;
+  const lossT=(_sk&&_sk.lossTotal)||0;const lossS=(_sk&&_sk.inhouseLoss)||0;
+  const pend02=(_sk&&_sk.pending)||(_cc&&(_cc.pending02||_cc.pending))||ORDERS.filter(o=>o.isPending&&o.actionPending).length;
+  const pendMore2=(_sk&&((_sk.moreThan2||0)+(_sk.highAgeing||0)))||(_cc&&((_cc.midAgeing35||0)+(_cc.highAgeing6||0)))||ORDERS.filter(o=>!o.isPending&&o.actionPending).length;
+  const ha=(_sk&&_sk.highAgeing)||(_cc&&(_cc.highAgeing6||_cc.highAgeing))||ORDERS.filter(o=>o.isHighAgeing&&o.actionPending).length;
+  const totAct=ap||1;$('ap-cnt',ap+' action pending');
+  if(USER?.isAdmin||isRA()){
+    const _kTot2=(_cc&&_cc.total)||(_sk&&_sk.totalRTO)||0;const _b2=_kTot2||1;
+    const snr=(_sk&&_sk.srnCompleted)||0;const cr=(_sk&&_sk.closureRemarks)||0;
+    const _apDer=Math.max(0,_kTot2-snr-cr);const _apP=Math.round(_apDer/_b2*100);
+    const _crP=Math.round(cr/_b2*100);const _snP=Math.round(snr/_b2*100);
+    setHTML('cd-kpis',
+      `<div class="kpi ab"><div class="ki">📦</div><div class="kl">Total RTO</div><div class="kv">${_kTot2.toLocaleString('en-IN')}</div><div class="ks">${fmtN((_sk&&_sk.totalAmount)||0)} GMV</div></div>`
+      +`<div class="kpi ag"><div class="ki">✅</div><div class="kl">SRN Completed</div><div class="kv">${_snP}%</div><div class="ks">(${snr}) · Visible 24h</div></div>`
+      +`<div class="kpi pu click" onclick="openCRModal()"><div class="ki">📋</div><div class="kl">Closure Remarks</div><div class="kv">${_crP}%</div><div class="ks">(${cr}) · Click to view</div></div>`
+      +`<div class="kpi aa"><div class="ki">⚠</div><div class="kl">Action Pending</div><div class="kv">${_apP}%</div><div class="ks">(${_apDer}) · Needs update</div></div>`
+      +`<div class="kpi ap click" onclick="triggerCityDl('${SCITY}','loss')"><div class="ki">💰</div><div class="kl">Total Loss Amount</div><div class="kv">${lossT?fmtN(lossT):'₹0'}</div><div class="ks">In-house: ${lossS?fmtN(lossS):'0'}</div></div>`
+    );
+    const t=totAct;const pp=Math.min(100,Math.round(pend02/t*100));const rp=Math.min(100,Math.round(pendMore2/t*100));const hp=Math.min(100,Math.round(ha/t*100));
+    const ageEl=$('cd-age-strip');
+    if(ageEl){ageEl.style.display='grid';ageEl.innerHTML=
+      `<div class="age-card p"><div class="age-ring" style="background:var(--bluel);color:var(--blue)">${pp}%</div><div class="age-info"><div class="age-lbl">0–2 Days</div><div class="age-cnt" style="color:var(--blue)">${pend02}</div><div class="age-bar"><div class="age-fill" style="width:${pp}%;background:var(--blue)"></div></div></div></div>`
+      +`<div class="age-card rv"><div class="age-ring" style="background:var(--amberl);color:var(--amber)">${rp}%</div><div class="age-info"><div class="age-lbl">&gt;2 Days</div><div class="age-cnt" style="color:var(--amber)">${pendMore2}</div><div class="age-bar"><div class="age-fill" style="width:${rp}%;background:var(--amber)"></div></div></div></div>`
+      +`<div class="age-card ha" style="background:#FFF1F1"><div class="age-ring" style="background:var(--redl);color:var(--red)">${hp}%</div><div class="age-info"><div class="age-lbl">&gt;5 Days <small style="opacity:.6;font-size:9px">(subset)</small></div><div class="age-cnt" style="color:var(--red)">${ha}</div><div class="age-bar"><div class="age-fill" style="width:${hp}%;background:var(--red)"></div></div></div></div>`
+    ;}
+  }
+  _renderCityPivot();
+}
+
+async function _renderCityPivot(){
+  const pvt=$('pivot-wrap');if(!pvt)return;
+  pvt.style.display='block';
+  pvt.innerHTML=`<div class="pivot-section"><div class="pivot-hdr"><h3>Action Pending Split — ${SCITY}</h3><span>Loading…</span></div></div>`;
+  try{
+    const ep=API+'?action=getOrders&email='+encodeURIComponent(USER?.email||'')+'&fAP=1&ps=1&page=1&pivot=1&fCity='+encodeURIComponent(SCITY);
+    const d=await fetch(ep).then(r=>r.json());
+    if(!d||!d.success||!d.pivot){pvt.style.display='none';return;}
+    const{fc,retail,tpl,total}=d.pivot;
+    if(!total){pvt.style.display='none';return;}
+    const sum=(fc||0)+(retail||0)+(tpl||0);
+    pvt.innerHTML=`<div class="pivot-section"><div class="pivot-hdr"><h3>Action Pending Split — ${SCITY}</h3><span>${total} Action Pending orders${sum!==total?' ⚠ check':''}</span></div><table class="pivot-table"><thead><tr><th>FC</th><th>RETAIL</th><th>3PL-PRE MDQ</th><th>Total Action Pending</th></tr></thead><tbody><tr><td class="pv-fc">${fc||0}</td><td class="pv-rt">${retail||0}</td><td class="pv-3pl">${tpl||0}</td><td class="pv-tot">${total}</td></tr><tr style="font-size:10px;color:var(--t3);"><td>${fc?Math.round((fc||0)/total*100):0}%</td><td>${retail?Math.round((retail||0)/total*100):0}%</td><td>${tpl?Math.round((tpl||0)/total*100):0}%</td><td>FC+RETAIL+3PL = ${sum}</td></tr></tbody></table></div>`;
+  }catch(e){pvt.innerHTML=`<div class="emp">Could not load pivot: ${e.message}</div>`;}
+}
+
+function rdRows(){
+  const tb=$('tbody');tb.innerHTML='';
+  const canE=USER?.isAdmin?true:canEdit(SCITY||USER?.city||'');
+  if(!ORDERS.length){$('temp').style.display='block';return;}
+  $('temp').style.display='none';
+  ORDERS.forEach(o=>{
+    const ch=CHANGES[o.orderId]||{};
+    const curAct=ch.action!==undefined?ch.action:o.currentAction||'';
+    const curUpd=ch.update!==undefined?ch.update:o.currentUpdate||'';
+    const cnNum=ch.cnNumber!==undefined?ch.cnNumber:(o.cnNumber||'');
+    const refNum=ch.refNumber!==undefined?ch.refNumber:(o.referenceNumber||'');
+    const codAmt=ch.codAmount!==undefined?ch.codAmount:(o.codAmount||'');
+    const isChg=ch.action!==undefined||ch.update!==undefined;
+    const cl=o.isGreen?'tg':o.hasCODShortfall?'tl':o.actionMismatch?'tm':o.actionPending&&!isChg?'tr':'';
+    const aeLk=o.actionEditCount>=2;const ueLk=o.updateEditCount>=2;
+    let actHtml='',updHtml='';
+    // SRN Completed orders: show read-only action, no editing allowed
+    if(o.isGreen&&o.srnCompleted){
+      actHtml=`<span class="ro" style="color:var(--green);font-weight:600;">✓ ${curAct||'—'}</span>`;
+      updHtml=`<span class="ro" style="color:var(--green);">${curUpd||'SRN Done'}</span>`;
+    }else if(!canE||aeLk){
+      actHtml=`<span class="ro">${curAct||'—'}</span>`+(aeLk&&canE&&USER?.isAdmin?`<button onclick="adminResetEdit('${o.orderId}')" style="margin-left:6px;padding:2px 8px;border-radius:4px;border:1px solid #FECACA;background:var(--redl);color:var(--red);font-size:10px;font-weight:700;cursor:pointer;">Reset</button>`:'<span class="lkchip" title="Max edits reached">✎✎</span>');
+    }else{
+      const aOpts=(o.availableActions||[]);
+      const hasExistingValidAction=curAct&&!o.actionMismatch&&ch.action===undefined;
+      if(hasExistingValidAction){
+        actHtml=`<div class="ec"><span class="ro" style="color:var(--green);font-weight:700;">✓ ${curAct}</span><button class="del-btn" onclick="delAct('${o.orderId}')" title="Clear action">✕</button><button class="hist-btn" onclick="openHist('${o.orderId}')" title="History">H</button></div>`;
+      }else if(aOpts.length){
+        const isMismatchRow=o.actionMismatch;
+        const selectDefault=`<option value="" disabled${isMismatchRow||!curAct?' selected':''}>— Select correct action —</option>`;
+        const mismatchOptHtml=isMismatchRow&&curAct?`<option value="" disabled style="color:#DC2626;background:#FEF2F2;font-weight:700;">⚠ "${curAct}" — Invalid for this order</option><option value="" disabled style="color:#94A3B8;font-size:11px;">──────────────────</option>`:'';
+        const optsHtml=aOpts.map(a=>`<option value="${a}">${a}</option>`).join('');
+        const selCls='isel'+(ch.action!==undefined?' ch':'')+(isMismatchRow?' isel-mismatch':'');
+        actHtml=`<div class="ec"><select class="${selCls}" onchange="onActChg('${o.orderId}',this.value,this)">${selectDefault}${mismatchOptHtml}${optsHtml}</select>${curAct&&!aeLk&&!isMismatchRow?`<button class="del-btn" onclick="delAct('${o.orderId}')" title="Clear action">✕</button>`:''}${curAct&&!isMismatchRow?`<button class="hist-btn" onclick="openHist('${o.orderId}')" title="History">H</button>`:''}</div>`;
+      }else{actHtml=`<span class="ro">${curAct||'—'}</span>`;}
+    }
+    const effectiveMismatch=o.actionMismatch&&ch.action===undefined;
+    const needUpd=curAct&&!effectiveMismatch&&(o.availableUpdates||[]).length>0;
+    if(!(o.isGreen&&o.srnCompleted)){// skip update block for SRN-completed orders (already set above)
+    if(!canE||ueLk){updHtml=`<span class="ro">${curUpd||'—'}</span>`;}
+    else if(!curAct||effectiveMismatch){updHtml=`<span class="lknote" style="color:var(--t3);">${!curAct?'Set action first':'Set correct action first'}</span>`;}
+    else if(!needUpd){updHtml=`<span class="lknote">Awaiting SRN</span>`;}
+    else{
+      const uOpts=(o.availableUpdates||[]);
+      const hasValidExistingUpd=curUpd&&uOpts.includes(curUpd)&&ch.update===undefined;
+      if(hasValidExistingUpd){
+        updHtml=`<div class="ec"><span class="ro" style="color:var(--green);font-weight:700;">✓ ${curUpd}</span></div>`;
+      }else{
+        const selectDefaultU=`<option value="" disabled${!curUpd||!uOpts.includes(curUpd)?' selected':''}>Select</option>`;
+        updHtml=`<div class="ec"><select class="isel${ch.update!==undefined?' ch':''}" onchange="onUpdChg('${o.orderId}',this.value,this)">${selectDefaultU}${uOpts.map(u=>`<option value="${u}"${u===curUpd?' selected':''}>${u}</option>`).join('')}</select>`;
+        if(curUpd==='CN Received'){updHtml+=`<span class="cn-lbl">CN Number</span><input class="cn-inp" type="text" placeholder="CN123…" value="${cnNum}" onchange="onCN('${o.orderId}',this.value)"/>`;}
+        if(curUpd==='COD Collected'){
+          const existingCodSubj=ch.emailSubjectLine!==undefined?ch.emailSubjectLine:(o.emailSubjectLine||'');
+          updHtml+=`<span class="ref-lbl">Ref No.</span><input class="ref-inp" type="text" placeholder="REF…" value="${refNum}" onchange="onRef('${o.orderId}',this.value)"/><span class="ref-lbl" style="color:var(--amber);">COD Amount ₹</span><input class="cod-inp" type="number" placeholder="0" value="${codAmt}" onchange="onCOD('${o.orderId}',this.value)"/>${o.hasCODShortfall?'<div class="cod-warn">⚠ COD shortfall detected</div>':''}<span class="cn-lbl" style="color:var(--red);font-weight:700;">* Email Subject</span><input class="cn-inp" style="min-width:180px;" type="text" placeholder="Required…" value="${existingCodSubj.replace(/"/g,'&quot;')}" onchange="onEmailSubj('${o.orderId}',this.value)"/>`;
+        }
+        if(curUpd==='Loss'){updHtml+=`<span class="loss-disp">GMV: ${fmtN(o.gmv||0)}</span>`;}
+        updHtml+='</div>';
+      }
+    }
+    }// end non-SRN-completed block
+    const srnBadge=o.srnStatus?`<span class="b ${o.srnCompleted?'bg':'bs'}">${o.srnStatus}</span>`:'—';
+    const svcBadge=o.serviceFlag?`<span class="b bt">${o.serviceFlag}</span>`:'—';
+    const ageBadge=o.isHighAgeing?`<span class="b br">${o.ageingDays}d HA</span>`:o.isMidAgeing?`<span class="b ba">${o.ageingDays}d</span>`:`<span class="b bs">${o.ageingDays||0}d</span>`;
+    const emailSubjHtml='';
+
+
+    tb.insertAdjacentHTML('beforeend',`<tr class="${cl}">
+      <td class="td-id">${o.orderId}${o.actionMismatch?'<br><span class="b ba" style="background:#FFF3CD;color:#856404;border-color:#FFECB5;font-size:9px">⚠ MISMATCH</span>':''}${o.actionPending&&!isChg&&!o.actionMismatch?'<br><span class="b br flash">Action Pending</span>':''}${o.isGreen?'<br><span class="b bg">✓ SRN/Closed</span>':''}</td>
+      <td>${o.city||'—'}</td><td>${fmtN(o.gmv||0)}</td>
+      <td><span class="b bs">${o.storeType||'—'}</span></td>
+      <td><span class="b ${o.partner==='INHOUSE'?'bb':'ba'}">${o.partner||'—'}</span></td>
+      <td><span class="b bt">${o.bu||'—'}</span></td>
+      <td>${o.cancellationStage||'—'}</td><td>${srnBadge}</td><td>${svcBadge} ${ageBadge}</td>
+      <td>${actHtml}</td><td>${updHtml}${emailSubjHtml}</td>
+    </tr>`);
+  });
+}
+
+function isRA(){return USER?.isRegionAdmin===true;}
+function inRegion(city){return USER?._regionSet?USER._regionSet.has((city||'').toUpperCase()):false;}
+function canEdit(city){if(!city)return USER?.isAdmin||isRA()||false;if(USER?.isAdmin||inRegion(city))return true;if(USER?.cities&&USER.cities.length>1)return USER.cities.some(c=>c.toUpperCase()===city.toUpperCase());return(USER?.city||'').toUpperCase()===city.toUpperCase();}
+function onActChg(id,val,sel){
+  const o=ORDERS.find(x=>x.orderId===id);if(!o)return;
+  const orig=o.currentAction||'';
+  if(val===orig){
+    if(CHANGES[id]){delete CHANGES[id].action;delete CHANGES[id].update;if(!Object.keys(CHANGES[id]).length)delete CHANGES[id];}
+    const rules=_getClientActionRules();const caseMap=rules&&o.caseId?rules[o.caseId]:null;
+    if(caseMap&&caseMap[orig])o.availableUpdates=caseMap[orig].updates||[];
+  }else{
+    CHANGES[id]=CHANGES[id]||{};CHANGES[id].action=val;delete CHANGES[id].update;
+    const rules=_getClientActionRules();const caseMap=rules&&o.caseId?rules[o.caseId]:null;
+    if(caseMap&&caseMap[val]){o.availableUpdates=caseMap[val].updates||[];}else{o.availableUpdates=[];}
+    if(caseMap&&caseMap[val])o.actionMismatch=false;
+  }
+  sel?.classList.toggle('ch',val!==orig);updSbar();rdRows();
+}
+function onUpdChg(id,val,sel){
+  const o=ORDERS.find(x=>x.orderId===id);if(!o)return;
+  const orig=o.currentUpdate||'';
+  if(val===orig){if(CHANGES[id]){delete CHANGES[id].update;if(!Object.keys(CHANGES[id]).length)delete CHANGES[id];}}
+  else{CHANGES[id]=CHANGES[id]||{};CHANGES[id].update=val;}
+  sel?.classList.toggle('ch',val!==orig);updSbar();rdRows();
+}
+function onCN(id,val){CHANGES[id]=CHANGES[id]||{};CHANGES[id].cnNumber=val;updSbar();}
+function onRef(id,val){CHANGES[id]=CHANGES[id]||{};CHANGES[id].refNumber=val;updSbar();}
+function onCOD(id,val){CHANGES[id]=CHANGES[id]||{};CHANGES[id].codAmount=parseFloat(val)||0;updSbar();}
+function onEmailSubj(id,val){CHANGES[id]=CHANGES[id]||{};CHANGES[id].emailSubjectLine=val.trim();updSbar();}
+function delAct(id){const o=ORDERS.find(x=>x.orderId===id);if(!o)return;CHANGES[id]=CHANGES[id]||{};CHANGES[id].action='';CHANGES[id].update='';updSbar();rdRows();}
+function updSbar(){const n=Object.keys(CHANGES).length;$('sbar').classList.toggle('hide',n===0);$('scnt',n+' change'+(n===1?'':'s')+' pending');$('sst','');}
+function clearAll(){CHANGES={};updSbar();rdRows();}
+
+function _patchOrdersAndRefreshUI(saveResults,changeMap){
+  const rules=_getClientActionRules();
+  saveResults.forEach(r=>{
+    if(!r.success)return;
+    const o=ORDERS.find(x=>x.orderId===r.orderId);if(!o)return;
+    const ch=changeMap[r.orderId]||{};
+    if(ch.action!==undefined){o.currentAction=ch.action;o.actionEditCount=(o.actionEditCount||0)+1;}
+    if(ch.update!==undefined){o.currentUpdate=ch.update;o.updateEditCount=(o.updateEditCount||0)+1;}
+    if(ch.cnNumber!==undefined)o.cnNumber=ch.cnNumber;
+    if(ch.refNumber!==undefined)o.referenceNumber=ch.refNumber;
+    if(ch.codAmount!==undefined)o.codAmount=ch.codAmount;
+    const act=o.currentAction||'';const upd=o.currentUpdate||'';
+    const srnOnly=new Set(['Connected to Warehouse \u2013 SRN Pending','Connected to Retail \u2013 SRN Pending','Pending with 3PL','Order Lost/Rider Absconded']);
+    const closing=new Set(['CN Received','COD Collected','Loss','Order Lost/Rider Absconded']);
+    o.isClosureRemark=srnOnly.has(act)||closing.has(upd);
+    const closingApplied=closing.has(upd)||act==='Order Lost/Rider Absconded';
+    if(closingApplied||o.srnDone)o.isGreen=true;
+    if(r.closureStatus==='CLOSED'){o.isGreen=true;o.actionPending=false;}
+    if(!o.isGreen&&!o.srnCompleted&&!o.isClosureRemark){
+      const caseMap=rules&&o.caseId?rules[o.caseId]:null;
+      if(!act){o.actionPending=true;}
+      else if(caseMap){const ae=caseMap[act];o.actionPending=!ae||(ae.updates&&ae.updates.length>0&&!upd);o.actionMismatch=!ae;}
+    }else{o.actionPending=false;o.actionMismatch=false;}
+    const caseMap=rules&&o.caseId?rules[o.caseId]:null;
+    if(caseMap&&act&&caseMap[act]){o.availableUpdates=caseMap[act].updates||[];}
+  });
+  rdRows();_refreshKPIFromMemory();if(SCITY)afterOrdersCity();
+}
+
+function _refreshKPIFromMemory(){
+  if(!SUM||!SUM.kpi)return;
+  const ap=ORDERS.filter(o=>o.actionPending&&!o.isGreen).length;
+  $('gapc',ap);if(SCITY)$('ap-cnt',ap+' action pending');
+}
+function _getClientActionRules(){if(SUM&&SUM.actionMap)return SUM.actionMap;return null;}
+
+async function saveAll(){
+  const entries=Object.entries(CHANGES).map(([id,c])=>({orderId:id,...c}));
+  if(!entries.length)return;
+  $('sbtn').disabled=true;
+  const changeSnapshot=Object.assign({},CHANGES);
+  const SAVE_CHUNK=4; // max 4 orders per GAS call — keeps execution well under timeout
+  const allResults=[];
+  const _doPost=async(chunk)=>fetch(API,{method:'POST',headers:{'Content-Type':'text/plain;charset=UTF-8'},
+    body:JSON.stringify({action:'batchSave',email:USER?.email||'',changes:chunk})}).then(r=>r.json());
+  try{
+    for(let i=0;i<entries.length;i+=SAVE_CHUNK){
+      const chunk=entries.slice(i,i+SAVE_CHUNK);
+      const total=entries.length; const done=Math.min(i+SAVE_CHUNK,total);
+      $('sst',total>SAVE_CHUNK?'Saving '+( i+1)+'–'+done+' of '+total+'…':'Saving…');
+      let res;
+      try{res=await _doPost(chunk);}
+      catch(e1){
+        $('sst','Retrying…');
+        await new Promise(r=>setTimeout(r,3000)); // wait 3s before retry
+        try{res=await _doPost(chunk);}
+        catch(e2){
+          toast('Network error — check connection and retry','red');
+          $('sbtn').disabled=false;$('sst','');return;
+        }
+      }
+      if(res&&res.success){
+        allResults.push(...(res.results||[]));
+        (res.results||[]).forEach(r=>{if(r.success)delete CHANGES[r.orderId];});
+      } else {
+        toast((res&&res.error)||'Save failed','red');
+        $('sbtn').disabled=false;$('sst','');return;
+      }
+    }
+    // All chunks done
+    const ok=allResults.filter(r=>r.success).length;
+    const fail=allResults.filter(r=>!r.success).length;
+    Object.keys(localStorage).filter(k=>k.startsWith('rto_f_')||k===LC_KEY).forEach(k=>localStorage.removeItem(k));
+    toast((ok>0?ok+' saved':'No changes saved')+(fail?' · '+fail+' failed':''),'green');
+    if(fail){const fIds=allResults.filter(r=>!r.success).map(r=>r.orderId+': '+(r.error||'failed')).join('\n');console.warn('Save failures:\n'+fIds);}
+    $('sst','');updSbar();
+    _patchOrdersAndRefreshUI(allResults,changeSnapshot);
+    fetch(API+'?action=bustCache&email='+encodeURIComponent(USER?.email||'')).catch(()=>{});
+  }catch(e){toast('Save failed: '+e.message,'red');}
+  $('sbtn').disabled=false;
+}
+
+function triggerUpload(){$('upload-file').click();}
+function closeUpload(){$('upload-modal').classList.add('hide');_uplBatch=null;const badge=$('usave-badge');if(badge)badge.style.display='none';}
+
+async function handleUpload(inp){
+  const file=inp.files[0];if(!file)return;
+  showOv('Parsing upload…','Reading Excel');
+  const ab=await file.arrayBuffer();
+  const wb=XLSX.read(ab,{type:'array'});
+  const sh=wb.Sheets[wb.SheetNames[0]];
+  const rows=XLSX.utils.sheet_to_json(sh,{header:1,raw:true,defval:''});
+  if(rows.length<2){hideOv();toast('Sheet empty or unreadable','red');inp.value='';return;}
+  let hdrRowIdx=-1,hdr=[];
+  for(let i=0;i<Math.min(10,rows.length);i++){
+    const candidate=rows[i].map(h=>String(h||'').toLowerCase().trim());
+    if(candidate.some(h=>h==='order id'||h.includes('shipment_order'))){hdrRowIdx=i;hdr=candidate;break;}
+  }
+  if(hdrRowIdx<0){hideOv();toast('Cannot find Order ID column. Upload a file downloaded from this dashboard.','red');inp.value='';return;}
+  const ci=hdr.findIndex(h=>h==='order id'||h.includes('shipment_order'));
+  const ai=hdr.findIndex(h=>h==='action'&&!h.includes('edit')&&!h.includes('valid actions'));
+  const ui=hdr.findIndex(h=>h==='update'&&!h.includes('edit')&&!h.includes('valid'));
+  const esi=hdr.findIndex(h=>h.includes('email subject'));
+  const cni=hdr.findIndex(h=>h.includes('cn number')||h==='cn');
+  const rni=hdr.findIndex(h=>h==='reference number'||h==='ref number'||(h.includes('ref')&&!h.includes('valid')&&!h.includes('amount')));
+  const codi=hdr.findIndex(h=>h==='cod amount'||(h.includes('cod')&&h.includes('amount')));
+  if(ai<0){hideOv();toast('Cannot find Action column.','red');inp.value='';return;}
+  const dataRows=rows.slice(hdrRowIdx+1).filter(r=>r[ci]&&String(r[ci]).trim());
+  if(!dataRows.length){hideOv();toast('No data rows found.','amber');inp.value='';return;}
+  const data=dataRows.map(r=>({
+    orderId:String(r[ci]||'').trim(),action:ai>=0?String(r[ai]||'').trim():'',
+    update:ui>=0?String(r[ui]||'').trim():'',emailSubjectLine:esi>=0?String(r[esi]||'').trim():'',
+    cnNumber:cni>=0?String(r[cni]||'').trim():'',refNumber:rni>=0?String(r[rni]||'').trim():'',
+    codAmount:codi>=0?(parseFloat(r[codi])||0):0,
+  }));
+  if(!data.length){hideOv();toast('No data rows found','amber');inp.value='';return;}
+  hideOv();showOv('Validating on server…','Checking '+data.length+' rows — this may take ~15s if data is loading');
+  try{
+    // Chunked validation: 50 rows per call so GAS never times out
+    // First chunk may trigger cache build; rest are fast
+    const VCHUNK=50;
+    const allVResults=[];
+    for(let vi=0;vi<data.length;vi+=VCHUNK){
+      const vChunk=data.slice(vi,vi+VCHUNK);
+      $('ov-msg','Validating '+(vi+1)+'–'+Math.min(vi+VCHUNK,data.length)+' of '+data.length+'…');
+      let vRes=null;
+      for(let attempt=0;attempt<3;attempt++){
+        try{
+          vRes=await fetch(API,{method:'POST',headers:{'Content-Type':'text/plain;charset=UTF-8'},
+            body:JSON.stringify({action:'validateUpload',email:USER?.email||'',data:vChunk})}).then(r=>r.json());
+          if(vRes&&vRes.success)break;
+        }catch(ve){
+          if(attempt<2){$('ov-msg','Server busy, retrying in '+(attempt===0?10:15)+'s…');await new Promise(r=>setTimeout(r,(attempt===0?10:15)*1000));}
+        }
+      }
+      if(!vRes||!vRes.success){hideOv();toast((vRes&&vRes.error)||'Validation failed — retry upload','red');inp.value='';return;}
+      allVResults.push(...(vRes.results||[]));
+    }
+    const res={success:true,results:allVResults};
+    hideOv();
+    _uplBatch=res;
+    const totalUploaded=data.length;
+    const correctMatch=res.results.filter(r=>r.valid&&!r.noChange).length;
+    const noChange=res.results.filter(r=>r.valid&&r.noChange).length;
+    const mismatchAction=res.results.filter(r=>!r.valid&&r.errorType==='mismatch_action').length;
+    const mismatchUpdate=res.results.filter(r=>!r.valid&&r.errorType==='mismatch_update').length;
+    const actionNotMade=res.results.filter(r=>!r.valid&&r.errorType==='action_not_made').length;
+    const editLimitHit=res.results.filter(r=>!r.valid&&r.errorType==='edit_limit').length;
+    const orderNotFound=res.results.filter(r=>!r.valid&&r.errorType==='not_found').length;
+    const missingSubject=0;
+    const otherFail=res.results.filter(r=>!r.valid&&!r.errorType).length;
+    const totalMismatch=mismatchAction+mismatchUpdate;const totalInvalid=res.results.filter(r=>!r.valid).length;
+    const isNoChangesScenario=(totalUploaded>0)&&(noChange===totalUploaded)&&correctMatch===0&&totalInvalid===0;
+    const hasMismatch=totalMismatch>0;
+    $('upload-title',isNoChangesScenario?'No Changes Found':'Upload Validation — '+totalUploaded+' rows');
+    if(isNoChangesScenario){
+      setHTML('usum',`<div style="display:flex;align-items:center;gap:14px;padding:6px 0;"><span style="font-size:26px;">→</span><div><div style="font-size:15px;font-weight:800;color:var(--t2);">No changes found in the file.</div><div style="font-size:12px;color:var(--t3);margin-top:2px;">${totalUploaded} rows checked — all values already match the dashboard.</div></div></div>`);
+    }else{
+      setHTML('usum',`<div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center;padding:4px 0;">
+        <div class="ustat tot"><b>${totalUploaded}</b>&nbsp;Uploaded</div>
+        ${correctMatch?`<div class="ustat ok">✓&nbsp;<b>${correctMatch}</b>&nbsp;Ready to Save</div>`:''}
+        ${mismatchAction?`<div class="ustat fail">✗&nbsp;<b>${mismatchAction}</b>&nbsp;Wrong Action</div>`:''}
+        ${mismatchUpdate?`<div class="ustat fail">✗&nbsp;<b>${mismatchUpdate}</b>&nbsp;Wrong Update</div>`:''}
+        ${missingSubject?`<div class="ustat fail">✉&nbsp;<b>${missingSubject}</b>&nbsp;Email Subject Missing</div>`:''}
+        ${actionNotMade?`<div class="ustat" style="color:var(--amber);">⚠&nbsp;<b>${actionNotMade}</b>&nbsp;Action Not Made</div>`:''}
+        ${editLimitHit?`<div class="ustat fail">🔒&nbsp;<b>${editLimitHit}</b>&nbsp;Edit Limit Reached</div>`:''}
+        ${noChange?`<div class="ustat tot">→&nbsp;<b>${noChange}</b>&nbsp;No Change</div>`:''}
+        ${orderNotFound?`<div class="ustat fail">✗&nbsp;<b>${orderNotFound}</b>&nbsp;Order Not Found</div>`:''}
+        ${otherFail?`<div class="ustat fail">✗&nbsp;<b>${otherFail}</b>&nbsp;Other Error</div>`:''}
+      </div>`);
+    }
+    const mismatchBanner=hasMismatch?`<div id="mismatch-banner" style="margin-bottom:14px;padding:16px 20px;border-radius:10px;background:#FFF3CD;border:2px solid #FFC107;display:flex;align-items:flex-start;gap:14px;"><span style="font-size:24px;flex-shrink:0;">⚠</span><div style="flex:1;"><div style="font-size:14px;font-weight:800;color:#856404;margin-bottom:6px;">Mismatched orders have been highlighted.</div><div style="font-size:12px;color:#856404;line-height:1.6;"><b>Valid updates shown in green will be applied. Mismatched rows shown in red will not be updated.</b></div><button onclick="downloadMismatchedOrders()" style="margin-top:10px;padding:6px 16px;border-radius:6px;background:#856404;color:#fff;border:none;font-size:12px;font-weight:700;cursor:pointer;">↓ Download Mismatched Orders</button></div></div>`:'';
+    const rowHtml=res.results.map(r=>{
+      if(r.valid&&!r.noChange)return`<div class="ures ok"><span class="ui-icon">✓</span><div class="ui-id">${r.orderId}</div><div class="ui-msg">${r.changes?r.changes.map(c=>`<b>${c.field}</b>: ${c.old} → ${c.new}`).join(' · '):'Ready'}</div></div>`;
+      if(r.valid&&r.noChange)return`<div class="ures ok" style="opacity:.6"><span class="ui-icon">→</span><div class="ui-id">${r.orderId}</div><div class="ui-msg" style="color:var(--t3)">No change (values already match)</div></div>`;
+      const isMismatch=r.errorType==='mismatch_action'||r.errorType==='mismatch_update';
+      return`<div class="ures fail" style="${isMismatch?'border-color:#FFC107;background:#FFFDE7;':''}">`+`<span class="ui-icon" style="${isMismatch?'color:#856404;':''}">✗</span>`+`<div class="ui-id">${r.orderId}</div>`+`<div class="ui-msg" style="${isMismatch?'color:#856404;':''}">${r.error||'Unknown error'}</div></div>`;
+    }).join('');
+    setHTML('ubody',mismatchBanner+rowHtml);
+    $('usave-btn').style.display=correctMatch>0?'':'none';
+    $('upload-modal').classList.remove('hide');
+  }catch(e){hideOv();toast('Validation failed — check your connection and retry upload.','red');}
+  inp.value='';
+}
+
+async function saveUploadChanges(){
+  if(!_uplBatch)return;
+  const valid=_uplBatch.results.filter(r=>r.valid&&!r.noChange);
+  if(!valid.length){toast('No changes to save','amber');return;}
+  const changeMap={};valid.forEach(r=>{if(r.resolved)changeMap[r.orderId]=r.resolved;});
+  const CHUNK=4; // reduced from 15 — prevents GAS timeout on bulk upload
+  const allChanges=valid.map(r=>({orderId:r.orderId,...(r.resolved||{})}));
+  const allResults=[];
+  showOv('Saving '+valid.length+' updates…','Sending in chunks of '+CHUNK);
+  try{
+    for(let i=0;i<allChanges.length;i+=CHUNK){
+      const chunk=allChanges.slice(i,i+CHUNK);
+      $('ov-msg','Saving '+(i+1)+'–'+Math.min(i+CHUNK,allChanges.length)+' of '+allChanges.length+'…');
+      const _doChunk=async()=>fetch(API,{method:'POST',headers:{'Content-Type':'text/plain;charset=UTF-8'},
+        body:JSON.stringify({action:'batchSave',email:USER?.email||'',source:'upload',changes:chunk})}).then(r=>r.json());
+      let res=null;
+      for(let att=0;att<3;att++){
+        try{res=await _doChunk();if(res&&res.success)break;}
+        catch(eR){if(att<2){$('ov-msg','Network hiccup, retrying…');await new Promise(r=>setTimeout(r,(att+1)*1500));}}
+      }
+      if(res&&res.success){allResults.push(...(res.results||[]));}
+      else{
+        // Don't abort — mark this chunk's orders as failed and continue with remaining chunks
+        chunk.forEach(ch=>allResults.push({orderId:ch.orderId,success:false,error:(res&&res.error)||'Batch failed — retry'}));
+        console.warn('Chunk '+(Math.floor(i/CHUNK)+1)+' failed:',(res&&res.error)||'network error');
+      }
+    }
+    hideOv();
+    const ok=allResults.filter(r=>r.success).length;
+    const fail=allResults.filter(r=>!r.success).length;
+    toast(ok+' orders updated'+(fail?' · '+fail+' failed':''),'green');
+    Object.keys(localStorage).filter(k=>k.startsWith('rto_f_')||k===LC_KEY).forEach(k=>localStorage.removeItem(k));
+    _patchOrdersAndRefreshUI(allResults,changeMap);
+    if(SCITY)afterOrdersCity();
+    const savedIds=new Set(allResults.filter(r=>r.success).map(r=>r.orderId));
+    const failedSaves=allResults.filter(r=>!r.success);
+    _uplBatch.results.forEach(r=>{
+      if(savedIds.has(r.orderId)){r._saved=true;}
+      else if(failedSaves.find(f=>f.orderId===r.orderId)){r._saveFail=true;r._saveError=(failedSaves.find(f=>f.orderId===r.orderId)||{}).error||'Save failed';}
+    });
+    setHTML('ubody',_uplBatch.results.map(r=>{
+      if(r._saved)return`<div class="ures ok"><span class="ui-icon">✓</span><div class="ui-id">${r.orderId}</div><div class="ui-msg" style="font-weight:700;color:var(--green)">Saved ✓ — now live on dashboard</div></div>`;
+      if(r._saveFail)return`<div class="ures fail"><span class="ui-icon">✗</span><div class="ui-id">${r.orderId}</div><div class="ui-msg">${r._saveError}</div></div>`;
+      if(r.valid&&!r.noChange)return`<div class="ures ok"><span class="ui-icon">✓</span><div class="ui-id">${r.orderId}</div><div class="ui-msg">${r.changes?r.changes.map(c=>`<b>${c.field}</b>: ${c.old} → ${c.new}`).join(' · '):'Ready'}</div></div>`;
+      if(r.valid&&r.noChange)return`<div class="ures ok" style="opacity:.6"><span class="ui-icon">→</span><div class="ui-id">${r.orderId}</div><div class="ui-msg" style="color:var(--t3)">No change (values already match)</div></div>`;
+      return`<div class="ures fail"><span class="ui-icon">✗</span><div class="ui-id">${r.orderId}</div><div class="ui-msg">${r.error||'Invalid'}</div></div>`;
+    }).join(''));
+    const mAct=_uplBatch.results.filter(r=>!r.valid&&r.errorType==='mismatch_action').length;
+    const mUpd=_uplBatch.results.filter(r=>!r.valid&&r.errorType==='mismatch_update').length;
+    const noAct=_uplBatch.results.filter(r=>!r.valid&&r.errorType==='action_not_made').length;
+    setHTML('usum',`<div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center;padding:4px 0;">
+      <div class="ustat ok">✓&nbsp;<b>${ok}</b>&nbsp;Saved &amp; Live</div>
+      ${fail?`<div class="ustat fail">✗&nbsp;<b>${fail}</b>&nbsp;Save Failed</div>`:''} 
+      ${mAct?`<div class="ustat fail">✗&nbsp;<b>${mAct}</b>&nbsp;Mismatch Actions</div>`:''}
+      ${mUpd?`<div class="ustat fail">✗&nbsp;<b>${mUpd}</b>&nbsp;Mismatch Updates</div>`:''}
+      ${noAct?`<div class="ustat" style="color:var(--amber);">⚠&nbsp;<b>${noAct}</b>&nbsp;Action Not Made</div>`:''}
+      <div class="ustat tot"><b>${_uplBatch.results.length}</b>&nbsp;Total Uploaded</div>
+    </div>`);
+    $('usave-btn').style.display='none';
+    const badge=$('usave-badge');const badgeCount=$('usave-badge-count');
+    if(badge&&badgeCount){badgeCount.textContent=ok;badge.style.display='flex';}
+    fetch(API+'?action=bustCache&email='+encodeURIComponent(USER?.email||'')).catch(()=>{});
+  }catch(e){hideOv();toast('Error: '+e.message,'red');}
+}
+
+function downloadMismatchedOrders(){
+  if(!_uplBatch||!_uplBatch.results)return;
+  const mismatches=_uplBatch.results.filter(r=>!r.valid&&(r.errorType==='mismatch_action'||r.errorType==='mismatch_update'));
+  if(!mismatches.length){toast('No mismatched orders found','amber');return;}
+  const wb=XLSX.utils.book_new();
+  const ws=XLSX.utils.aoa_to_sheet([['Order ID','Error Type','Error Detail'],...mismatches.map(r=>[r.orderId,r.errorType==='mismatch_action'?'Wrong Action':'Wrong Update',r.error||''])]);
+  ws['!cols']=[{wch:22},{wch:16},{wch:80}];
+  XLSX.utils.book_append_sheet(wb,ws,'Mismatched Orders');
+  XLSX.writeFile(wb,'Mismatched_Orders_'+new Date().toISOString().slice(0,10)+'.xlsx');
+  toast('Downloaded '+mismatches.length+' mismatched orders');
+}
+
+async function openHist(id){
+  $('hist-id',id);setHTML('hist-body','<div class="emp"><div class="emp-i">⏳</div>Loading…</div>');
+  $('hist-modal').classList.remove('hide');
+  try{
+    const r=await fetch(API+'?action=getHistory&email='+encodeURIComponent(USER?.email||'')+'&orderId='+encodeURIComponent(id)).then(r=>r.json());
+    if(!r||!r.success||!r.history.length){setHTML('hist-body','<div class="emp"><div class="emp-i">📭</div>No history found.</div>');return;}
+    setHTML('hist-body',r.history.map(h=>`<div class="htx"><div class="htx-ts">${fmtD(h.ts||h.date)}</div><div class="htx-user">${h.user||'—'}</div><div class="htx-body"><b>${h.field||'action'}:</b> ${h.oldVal||'(none)'} → <b>${h.newVal||'(none)'}</b></div></div>`).join(''));
+  }catch(e){setHTML('hist-body','<div class="emp"><div class="emp-i">⚠</div>'+e.message+'</div>');}
+}
+function closeHist(){$('hist-modal').classList.add('hide');}
+
+function openHA(){
+  const ha=ORDERS.filter(o=>o.isHighAgeing&&!o.isGreen);if(!ha.length){toast('No high ageing orders on this page','amber');return;}
+  setHTML('ha-body',ha.map(o=>`<div class="mor"><div class="mor-id">${o.orderId}</div><div class="mor-meta">${o.city} · ${fmtN(o.gmv||0)} · ${o.currentAction||'No action'}</div><div class="mor-age">${o.ageingDays}d</div></div>`).join(''));
+  $('ha-modal').classList.remove('hide');
+}
+function closeHA(){$('ha-modal').classList.add('hide');}
+
+async function openAPModal(){
+  setHTML('ap-body','<div class="emp"><div class="emp-i">⏳</div>Loading AP queue…</div>');
+  $('ap-modal').classList.remove('hide');
+  const ep=API+'?action=getOrders&email='+encodeURIComponent(USER?.email||'')+'&fAP=1&ps=2000&page=1&slim=1'+_cq();
+  try{
+    const d=await fetch(ep).then(r=>r.json());
+    if(!d||!d.success){setHTML('ap-body','<div class="emp">Failed to load.</div>');return;}
+    const ords=d.orders||[];
+    setHTML('ap-body',ords.length?'<div style="padding:10px 14px 6px;font-size:12px;font-weight:600;color:var(--t2);">'+ords.length+' orders action pending</div>'+ords.map(o=>`<div class="mor"><div class="mor-id">${o.orderId}</div><div class="mor-meta">${o.city} · ${fmtN(o.gmv||0)} · ${o.currentAction||'No action set'}</div><div class="mor-age">${o.ageingDays||0}d</div></div>`).join(''):'<div class="emp"><div class="emp-i">🎉</div>No Action Pending orders!</div>');
+  }catch(e){setHTML('ap-body','<div class="emp">Error: '+e.message+'</div>');}
+}
+function closeAP(){$('ap-modal').classList.add('hide');}
+
+async function openCRModal(){
+  setHTML('cr-pane-1','<div class="emp"><div class="emp-i">⏳</div>Loading…</div>');
+  setHTML('cr-pane-2','<div class="emp"><div class="emp-i">⏳</div>Loading…</div>');
+  $('cr-modal').classList.remove('hide');
+  const eml=encodeURIComponent(USER?.email||'');const cq=_cq();
+  const render=(rows,emptyMsg)=>{
+    if(!rows||!rows.length)return '<div class="emp"><div class="emp-i">✅</div>'+emptyMsg+'</div>';
+    const totalGmv=rows.reduce((acc,o)=>acc+(o.gmv||0),0);
+    return '<div style="padding:10px 14px 6px;display:flex;gap:16px;font-size:12px;font-weight:600;color:var(--t2);">'+'<span>'+rows.length+' orders</span>'+'<span style="color:var(--red);">GMV: '+fmtN(totalGmv)+'</span></div>'
+      +rows.map(o=>'<div class="mor"><div class="mor-id">'+o.orderId+'</div><div class="mor-meta">'+o.city+' · '+fmtN(o.gmv||0)+' · '+(o.currentAction||'—')+(o.currentUpdate?' / '+o.currentUpdate:'')+' · SRN:'+(o.srnStatus||'—')+'</div><div class="mor-age">'+(o.ageingDays||0)+'d</div></div>').join('');
+  };
+  try{
+    const[d1,d2]=await Promise.all([
+      fetch(API+'?action=getOrders&email='+eml+'&fClosureRemark=1&ps=2000&page=1&slim=1'+cq).then(r=>r.json()),
+      fetch(API+'?action=getOrders&email='+eml+'&fCODCN=1&ps=2000&page=1&slim=1'+cq).then(r=>r.json()),
+    ]);
+    setHTML('cr-pane-1',render(d1?.orders,'No closure remark or loss/lost orders.'));
+    setHTML('cr-pane-2',render(d2?.orders,'No COD Collected or CN Received orders.'));
+  }catch(e){
+    setHTML('cr-pane-1','<div class="emp"><div class="emp-i">⚠</div>Load failed: '+e.message+'</div>');
+    setHTML('cr-pane-2','<div class="emp"><div class="emp-i">⚠</div>Load failed: '+e.message+'</div>');
+  }
+}
+function closeCR(){$('cr-modal').classList.add('hide');}
+function setCRTab(t){
+  $('cr-tab-1').style.borderBottomColor=t===1?'var(--blue)':'transparent';$('cr-tab-1').style.color=t===1?'var(--blue)':'var(--t3)';
+  $('cr-tab-2').style.borderBottomColor=t===2?'var(--blue)':'transparent';$('cr-tab-2').style.color=t===2?'var(--blue)':'var(--t3)';
+  $('cr-pane-1').style.display=t===1?'':'none';$('cr-pane-2').style.display=t===2?'':'none';
+}
+
+async function triggerDl(type){
+  if(type==='panIndia'){await _doDownload('complete',null);}
+  else if(type==='filtered'){$('dlct','Filtered Download');$('dlcm','Filtered view or full dataset.');$('dl-modal').classList.remove('hide');}
+  else if(type==='loss'){await _doDownload('loss',null);}
+  else if(type==='ap'){await _doDownload('ap',SCITY||null);}
+}
+function triggerCityDl(city,t){$('dlct',city+' Download');$('dlcm','Choose what to download for '+city+'.');$('dl-modal').classList.remove('hide');$('dl-modal').dataset.city=city;$('dl-modal').dataset.t=t||'';}
+function closeDlConf(){$('dl-modal').classList.add('hide');}
+async function dlGo(mode){const city=$('dl-modal').dataset.city||null;const t=$('dl-modal').dataset.t||null;closeDlConf();await _doDownload(t==='loss'?'loss':mode,city);}
+
+async function _doDownload(type,city){
+  showOv('Preparing download…','Building dataset');
+  try{
+    let ep=API+'?action=downloadCity&email='+encodeURIComponent(USER?.email||'')+'&type='+(type||'complete');
+    if(city)ep+='&fCity='+encodeURIComponent(city);
+    if(type==='filtered')ep+=_cq()+'&'+_fp();
+    const d=await fetch(ep).then(r=>r.json());
+    hideOv();if(!d||!d.success){toast(d?.error||'Download failed','red');return;}
+    const rows=d.rows||[];if(!rows.length){toast('No data to download','amber');return;}
+    const wb=XLSX.utils.book_new();
+    const instrRows=d.instrRows||[];const allRows=[...instrRows,...rows];const instrCount=instrRows.length;
+    const ws1=XLSX.utils.aoa_to_sheet(allRows);
+    ws1['!cols']=rows[0].map((_,i)=>({wch:i===0?22:i<=2?12:i<=9?14:20}));
+    ws1['!freeze']={xSplit:0,ySplit:instrCount+1};
+    const instrStyles=[{fill:'FFF176',font:'1A237E',bold:true,sz:11},{fill:'FFFFFF',font:'1565C0',bold:false,sz:10},{fill:'FFFFFF',font:'1565C0',bold:false,sz:10},{fill:'FFFDE7',font:'B71C1C',bold:true,sz:10},{fill:'FFFFFF',font:'C62828',bold:false,sz:10}];
+    for(let ir=0;ir<instrCount;ir++){const addr=XLSX.utils.encode_cell({r:ir,c:0});if(ws1[addr]){const st=instrStyles[ir];if(st)ws1[addr].s={font:{bold:st.bold,color:{rgb:st.font},sz:st.sz},fill:{fgColor:{rgb:st.fill}}};}}
+    const range=XLSX.utils.decode_range(ws1['!ref']||'A1');
+    for(let c=range.s.c;c<=range.e.c;c++){const addr=XLSX.utils.encode_cell({r:instrCount,c});if(!ws1[addr])ws1[addr]={v:rows[0][c]||''};ws1[addr].s={font:{bold:true},fill:{fgColor:{rgb:'1E3A5F'}},alignment:{horizontal:'center'}};}
+    const flags=d.mismatchFlags||[];const actionColIdx=rows[0].indexOf('Action');
+    for(let ri=1;ri<rows.length;ri++){const isMismatch=flags[ri]===true;const sheetRow=instrCount+ri;for(let ci=range.s.c;ci<=range.e.c;ci++){const addr=XLSX.utils.encode_cell({r:sheetRow,c:ci});if(!ws1[addr])ws1[addr]={v:rows[ri][ci]!==undefined?rows[ri][ci]:''};if(isMismatch){const isActCell=(ci===actionColIdx);ws1[addr].s={fill:{fgColor:{rgb:isActCell?'C0392B':'F39C12'}},font:{color:{rgb:isActCell?'FFFFFF':'000000'},bold:isActCell}};}else{ws1[addr].s={fill:{fgColor:{rgb:ri%2===0?'F5F7FA':'FFFFFF'}}}}};}
+    const mismatchCount=flags.filter(Boolean).length;
+    XLSX.utils.book_append_sheet(wb,ws1,'RTO Data (Fill In)');
+    if(d.refRows&&d.refRows.length>1){
+      const ws2=XLSX.utils.aoa_to_sheet(d.refRows);const refRange=XLSX.utils.decode_range(ws2['!ref']||'A1');
+      for(let c=refRange.s.c;c<=refRange.e.c;c++){const addr=XLSX.utils.encode_cell({r:0,c});if(!ws2[addr])ws2[addr]={v:d.refRows[0][c]||''};ws2[addr].s={font:{bold:true,color:{rgb:'FFFFFF'}},fill:{fgColor:{rgb:'1E3A5F'}},alignment:{horizontal:'center'}};}
+      for(let ri=1;ri<d.refRows.length;ri++){const bg=ri%2===0?'F5F7FA':'FFFFFF';for(let ci=refRange.s.c;ci<=refRange.e.c;ci++){const addr=XLSX.utils.encode_cell({r:ri,c:ci});if(!ws2[addr])ws2[addr]={v:d.refRows[ri][ci]!==undefined?d.refRows[ri][ci]:''};ws2[addr].s={fill:{fgColor:{rgb:bg}},font:{bold:(ci===5||ci===6)}};}}
+      ws2['!cols']=[{wch:12},{wch:14},{wch:14},{wch:18},{wch:12},{wch:40},{wch:32},{wch:30}];ws2['!freeze']={xSplit:0,ySplit:1};
+      XLSX.utils.book_append_sheet(wb,ws2,'Action Reference');
+    }
+    const typeLabel=type==='ap'?'_AP':type==='corrective'?'_Corrective':type==='loss'?'_Loss':'';
+    XLSX.writeFile(wb,(city||'PanIndia')+'_RTO'+typeLabel+'_'+new Date().toISOString().slice(0,10)+'.xlsx',{cellStyles:true});
+    toast('Downloaded '+(rows.length-1)+' orders'+(mismatchCount?' · '+mismatchCount+' mismatch rows highlighted':''),'green');
+  }catch(e){hideOv();toast('Download error: '+e.message,'red');}
+}
+
+async function openLossModal(){
+  $('loss-modal-count','');
+  setHTML('loss-modal-body','<div class="emp"><div class="emp-i">⏳</div>Loading…</div>');
+  const adminBtn=$('loss-admin-btn');
+  if(adminBtn){if(USER?.isAdmin||isRA()){adminBtn.innerHTML=`<button onclick="viewRecoveredOrders()" style="padding:8px 18px;border-radius:7px;background:var(--purple);color:#fff;border:none;font-size:13px;font-weight:700;cursor:pointer;">🔍 View Recovered</button>`;}else{adminBtn.innerHTML='';}}
+  $('loss-modal').classList.remove('hide');
+  try{
+    const ep=API+'?action=getLossOrders&email='+encodeURIComponent(USER?.email||'')+_cq();
+    const d=await fetch(ep).then(r=>r.json());
+    if(!d||!d.success){setHTML('loss-modal-body','<div class="emp">Failed to load.</div>');return;}
+    const orders=d.orders||[];$('loss-modal-count','('+orders.length+' orders)');
+    const pending=orders.filter(o=>o.recoveryStatus==='Pending');const recovered=orders.filter(o=>o.recoveryStatus==='Recovered');
+    setHTML('loss-modal-body',
+      `<div style="padding:10px 14px 6px;display:flex;gap:16px;font-size:12px;font-weight:700;color:var(--t2);">
+        <span style="color:var(--red);">${pending.length} Pending Recovery</span>
+        <span style="color:var(--green);">${recovered.length} Recovered</span>
+        <span>Total GMV: ${fmtN(orders.reduce((s,o)=>s+(o.gmv||0),0))}</span>
+      </div>`+
+      (orders.length?orders.map(o=>`<div class="mor" style="cursor:default;"><div class="mor-id">${o.orderId}</div><div class="mor-meta">${o.city} · ${fmtN(o.gmv||0)} · ${o.currentAction||'—'}${o.recoveredAmount?' · Rec: '+fmtN(o.recoveredAmount):''}</div><div class="mor-age" style="background:${o.recoveryStatus==='Recovered'?'var(--greenl)':'var(--redl)'};color:${o.recoveryStatus==='Recovered'?'var(--green)':'var(--red)'};border-color:${o.recoveryStatus==='Recovered'?'#A7F3D0':'#FECACA'};">${o.recoveryStatus==='Recovered'?'✓ Recovered':'Pending'}</div></div>`).join(''):'<div class="emp"><div class="emp-i">✓</div>No Loss/Lost orders.</div>')
+    );
+  }catch(e){setHTML('loss-modal-body','<div class="emp">Error: '+e.message+'</div>');}
+}
+function closeLossModal(){$('loss-modal').classList.add('hide');}
+
+async function viewRecoveredOrders(){
+  if(!USER?.isAdmin&&!isRA())return;
+  setHTML('loss-modal-body','<div class="emp"><div class="emp-i">⏳</div>Loading recovered orders…</div>');
+  try{
+    const ep=API+'?action=getLossOrders&email='+encodeURIComponent(USER?.email||'')+'&view=recovered'+_cq();
+    const d=await fetch(ep).then(r=>r.json());
+    if(!d||!d.success){setHTML('loss-modal-body','<div class="emp">Failed.</div>');return;}
+    const orders=d.orders||[];$('loss-modal-count','('+orders.length+' recovered)');
+    setHTML('loss-modal-body',`<div style="padding:10px 14px 6px;font-size:12px;font-weight:700;color:var(--green);">${orders.length} orders · Recovered: ${fmtN(orders.reduce((s,o)=>s+(o.recoveredAmount||0),0))}</div>`+(orders.length?orders.map(o=>`<div class="mor" style="cursor:default;"><div class="mor-id">${o.orderId}</div><div class="mor-meta">${o.city} · GMV: ${fmtN(o.gmv||0)} · Recovered: ${fmtN(o.recoveredAmount||0)}${o.recoveryRef?' · Ref: '+o.recoveryRef:''}</div><div class="mor-age" style="background:var(--greenl);color:var(--green);border-color:#A7F3D0;">✓ Done</div></div>`).join(''):'<div class="emp">No recovered orders yet.</div>'));
+  }catch(e){setHTML('loss-modal-body','<div class="emp">Error: '+e.message+'</div>');}
+}
+function openLossRecoveryUpload(){$('loss-recovery-file').click();}
+
+async function handleLossRecovery(inp){
+  const file=inp.files[0];if(!file)return;
+  showOv('Parsing recovery file…','Reading Excel');
+  const ab=await file.arrayBuffer();const wb=XLSX.read(ab,{type:'array'});const sh=wb.Sheets[wb.SheetNames[0]];
+  const rows=XLSX.utils.sheet_to_json(sh,{header:1,raw:true,defval:''});
+  if(rows.length<2){hideOv();toast('File empty','red');inp.value='';return;}
+  const hdr=rows[0].map(h=>String(h||'').toLowerCase().trim());
+  const oi=hdr.findIndex(h=>h.includes('order'));const ai=hdr.findIndex(h=>h.includes('amount')||h.includes('recovered'));
+  const ri=hdr.findIndex(h=>h.includes('ref'));const di=hdr.findIndex(h=>h.includes('date'));
+  if(oi<0||ai<0){hideOv();toast('Cannot find Order ID or Recovered Amount column','red');inp.value='';return;}
+  const recoveryRows=rows.slice(1).filter(r=>r[oi]).map(r=>({orderId:String(r[oi]||'').trim(),recoveredAmount:parseFloat(r[ai])||0,recoveryRef:ri>=0?String(r[ri]||'').trim():'',recoveryDate:di>=0?String(r[di]||'').trim():''}));
+  hideOv();if(!recoveryRows.length){toast('No data rows found','amber');inp.value='';return;}
+  const missingAmt=recoveryRows.filter(r=>!r.recoveredAmount||r.recoveredAmount<=0);
+  const missingRef=recoveryRows.filter(r=>!r.recoveryRef);
+  if(missingAmt.length){toast('Amount Recovered missing or zero in '+missingAmt.length+' row(s)','red');inp.value='';return;}
+  if(missingRef.length){toast('Ref Number missing in '+missingRef.length+' row(s)','red');inp.value='';return;}
+  showOv('Uploading recovery data…','Saving to backend');
+  try{
+    const res=await fetch(API,{method:'POST',headers:{'Content-Type':'text/plain;charset=UTF-8'},body:JSON.stringify({action:'lossRecoveryUpload',email:USER?.email||'',rows:recoveryRows})}).then(r=>r.json());
+    hideOv();
+    if(res.success){toast(res.saved+' recovery records saved'+(res.failed?' · '+res.failed+' failed':''),'green');localStorage.removeItem(LC_KEY);openLossModal();}
+    else{toast(res.error||'Upload failed','red');}
+  }catch(e){hideOv();toast('Network error: '+e.message,'red');}
+  inp.value='';
+}
+
+async function downloadAP(){const city=SCITY||(USER?.isAdmin?'':USER?.city||'');await _doDownload('ap',city||null);}
+async function dlCRHighAgeing(){await _doDownload('crHighAgeing',SCITY||null);}
+
+function rdChartsKPI(k){
+  _mkChart('ch-ag','bar',['0-2 Days','2-5 Days','>5 Days'],[k.pending||0,k.moreThan2||0,k.highAgeing||0],['#2563EB','#D97706','#DC2626']);
+  _mkChart('ch-st','doughnut',['Action Pending','Closure Remark','SRN Done'],[k.actionPending||0,k.closureRemarks||0,k.srnCompleted||0],['#D97706','#7C3AED','#059669']);
+  if(k.actionBreakdown&&Object.keys(k.actionBreakdown).length){const _acts=Object.entries(k.actionBreakdown).sort((a,b)=>b[1]-a[1]).slice(0,8);_mkChart('ch-ac','bar',_acts.map(e=>e[0].replace('Connected to ','→ ').replace('Pending with ','Pending/')),_acts.map(e=>e[1]),['#2563EB']);}
+  if(k.qcBreakdown)_mkChart('ch-qc','doughnut',Object.keys(k.qcBreakdown),Object.values(k.qcBreakdown),['#2563EB','#D97706','#DC2626']);
+}
+function _mkChart(id,type,labels,data,colors){
+  try{
+    const el=$(id);if(!el)return;if(_charts[id])_charts[id].destroy();
+    const total=data.reduce((a,b)=>a+(b||0),0)||1;
+    const dlConfig=type==='doughnut'?{display:true,color:'#fff',font:{size:10,weight:'700'},formatter:function(v){return v>0?Math.round(v/total*100)+'%':null;}}:{display:true,color:'#334155',font:{size:10,weight:'600'},anchor:'end',align:'top',offset:2,formatter:function(v){return v>0?v:null;}};
+    _charts[id]=new Chart(el,{type,data:{labels,datasets:[{data,backgroundColor:colors,borderWidth:type==='doughnut'?2:0,borderRadius:type==='bar'?4:0,borderColor:'#fff'}]},options:{responsive:true,plugins:{legend:{display:type==='doughnut',position:'bottom',labels:{font:{size:10},padding:8}},tooltip:{callbacks:{label:function(ctx){const val=type==='bar'?(typeof ctx.parsed==='object'&&ctx.parsed!==null?ctx.parsed.y:ctx.parsed):ctx.parsed;return(ctx.label||'')+': '+val;}}},datalabels:dlConfig}}});
+  }catch(e){}
+}
+async function adminResetEdit(orderId){
+  if(!USER?.isAdmin){toast('Admin only','red');return;}if(!confirm('Reset edit count for '+orderId+'?'))return;
+  try{const r=await fetch(API+'?action=resetEditCount&email='+encodeURIComponent(USER.email||'')+'&orderId='+encodeURIComponent(orderId)).then(r=>r.json());if(r.success){toast('Edit count reset for '+orderId);localStorage.removeItem(LC_KEY);loadOrders();}else toast(r.error||'Reset failed','red');}catch(e){toast('Network error','red');}
+}
+
+</script>
+</body>
+</html>
