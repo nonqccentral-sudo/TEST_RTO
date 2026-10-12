@@ -352,9 +352,6 @@ td{padding:12px 14px;color:var(--t1);vertical-align:middle;white-space:nowrap;}
   .kgrid{grid-template-columns:1fr;}.upill{display:none;}.hdr-title{font-size:13px;}
   .cgrid{grid-template-columns:1fr;}.age-strip{grid-template-columns:1fr;}
 }
-
-.action-select-wrap{display:flex;flex-direction:column;align-items:flex-start;gap:4px;min-width:180px;max-width:320px}
-.action-mismatch-note{font-size:10px;line-height:1.35;font-weight:700;color:#B91C1C;background:#FEF2F2;border:1px solid #FECACA;border-radius:5px;padding:4px 7px;white-space:normal;max-width:300px}
 </style>
 </head>
 <body>
@@ -1037,12 +1034,11 @@ function rdRows(){
         actHtml=`<div class="ec"><span class="ro" style="color:var(--green);font-weight:700;">✓ ${curAct}</span><button class="del-btn" onclick="delAct('${o.orderId}')" title="Clear action">✕</button><button class="hist-btn" onclick="openHist('${o.orderId}')" title="History">H</button></div>`;
       }else if(aOpts.length){
         const isMismatchRow=o.actionMismatch;
-        const selectDefault=`<option value="" disabled selected>— Select correct action —</option>`;
-        // Invalid existing action is warning text only, never a selectable option.
-        const mismatchWarning=isMismatchRow&&curAct?`<div class="action-mismatch-note" role="alert">⚠ Wrong action: ${String(curAct).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')} — choose a valid action</div>`:'';
-        const optsHtml=aOpts.filter(a=>a!==curAct||!isMismatchRow).map(a=>`<option value="${String(a).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}">${String(a).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</option>`).join('');
+        const selectDefault=`<option value="" disabled${isMismatchRow||!curAct?' selected':''}>— Select correct action —</option>`;
+        const mismatchOptHtml=isMismatchRow&&curAct?`<option value="" disabled style="color:#DC2626;background:#FEF2F2;font-weight:700;">⚠ "${curAct}" — Invalid for this order</option><option value="" disabled style="color:#94A3B8;font-size:11px;">──────────────────</option>`:'';
+        const optsHtml=aOpts.map(a=>`<option value="${a}">${a}</option>`).join('');
         const selCls='isel'+(ch.action!==undefined?' ch':'')+(isMismatchRow?' isel-mismatch':'');
-        actHtml=`<div class="ec"><div class="action-select-wrap">${mismatchWarning}<select class="${selCls}" onchange="onActChg('${o.orderId}',this.value,this)">${selectDefault}${optsHtml}</select></div>${curAct&&!aeLk&&!isMismatchRow?`<button class="del-btn" onclick="delAct('${o.orderId}')" title="Clear action">✕</button>`:''}${curAct&&!isMismatchRow?`<button class="hist-btn" onclick="openHist('${o.orderId}')" title="History">H</button>`:''}</div>`;
+        actHtml=`<div class="ec"><select class="${selCls}" onchange="onActChg('${o.orderId}',this.value,this)">${selectDefault}${mismatchOptHtml}${optsHtml}</select>${curAct&&!aeLk&&!isMismatchRow?`<button class="del-btn" onclick="delAct('${o.orderId}')" title="Clear action">✕</button>`:''}${curAct&&!isMismatchRow?`<button class="hist-btn" onclick="openHist('${o.orderId}')" title="History">H</button>`:''}</div>`;
       }else{actHtml=`<span class="ro">${curAct||'—'}</span>`;}
     }
     const effectiveMismatch=o.actionMismatch&&ch.action===undefined;
@@ -1258,18 +1254,6 @@ async function handleUpload(inp){
       if(!vRes||!vRes.success){hideOv();toast((vRes&&vRes.error)||'Validation failed — retry upload','red');inp.value='';return;}
       allVResults.push(...(vRes.results||[]));
     }
-    const uploadedById=new Map(data.map(r=>[r.orderId,r]));
-    allVResults.forEach(r=>{
-      const original=uploadedById.get(String(r.orderId||'').trim());
-      if(original){
-        r.uploadedAction=original.action||'';
-        r.uploadedUpdate=original.update||'';
-        r.uploadedEmailSubjectLine=original.emailSubjectLine||'';
-        r.uploadedCNNumber=original.cnNumber||'';
-        r.uploadedRefNumber=original.refNumber||'';
-        r.uploadedCODAmount=original.codAmount||0;
-      }
-    });
     const res={success:true,results:allVResults};
     hideOv();
     _uplBatch=res;
@@ -1315,15 +1299,6 @@ async function handleUpload(inp){
     $('upload-modal').classList.remove('hide');
   }catch(e){hideOv();toast('Validation failed — check your connection and retry upload.','red');}
   inp.value='';
-}
-
-function confirmUploadSave(){
-  if(!_uplBatch||!_uplBatch.results)return;
-  const validCount=_uplBatch.results.filter(r=>r.valid&&!r.noChange).length;
-  if(!validCount){toast('No changes to save','amber');return;}
-  const yes=window.confirm('Do you want to save '+validCount+' actions?');
-  if(!yes)return;
-  saveUploadChanges();
 }
 
 async function saveUploadChanges(){
@@ -1391,26 +1366,36 @@ async function saveUploadChanges(){
   }catch(e){hideOv();toast('Error: '+e.message,'red');}
 }
 
+function confirmUploadSave(){
+  if(!_uplBatch||!_uplBatch.results)return;
+  const validCount=_uplBatch.results.filter(r=>r.valid&&!r.noChange).length;
+  if(!validCount){toast('No changes to save','amber');return;}
+  const yes=window.confirm('Do you want to save '+validCount+' action'+(validCount===1?'':'s')+'?');
+  if(!yes)return;
+  saveUploadChanges();
+}
+
 function downloadMismatchedOrders(){
   if(!_uplBatch||!_uplBatch.results)return;
   const mismatches=_uplBatch.results.filter(r=>!r.valid&&(r.errorType==='mismatch_action'||r.errorType==='mismatch_update'));
   if(!mismatches.length){toast('No mismatched orders found','amber');return;}
   const wb=XLSX.utils.book_new();
+  // Include resolved fields so user can correct and re-upload
   const ws=XLSX.utils.aoa_to_sheet([
     ['Order ID','Action','Update','Email Subject Line','CN Number','Reference Number','COD Amount','Error Type','Error Detail'],
     ...mismatches.map(r=>[
       r.orderId,
-      r.uploadedAction||'',
-      r.uploadedUpdate||'',
-      r.uploadedEmailSubjectLine||'',
-      r.uploadedCNNumber||'',
-      r.uploadedRefNumber||'',
-      r.uploadedCODAmount||0,
+      r.resolved?.action||'',
+      r.resolved?.update||'',
+      r.resolved?.emailSubjectLine||'',
+      r.resolved?.cnNumber||'',
+      r.resolved?.refNumber||'',
+      r.resolved?.codAmount||'',
       r.errorType==='mismatch_action'?'Wrong Action':'Wrong Update',
       r.error||''
     ])
   ]);
-  ws['!cols']=[{wch:22},{wch:34},{wch:30},{wch:40},{wch:20},{wch:22},{wch:14},{wch:16},{wch:80}];
+  ws['!cols']=[{wch:22},{wch:30},{wch:30},{wch:25},{wch:18},{wch:18},{wch:14},{wch:16},{wch:80}];
   XLSX.utils.book_append_sheet(wb,ws,'Mismatched Orders');
   XLSX.writeFile(wb,'Mismatched_Orders_'+new Date().toISOString().slice(0,10)+'.xlsx');
   toast('Downloaded '+mismatches.length+' mismatched orders');
