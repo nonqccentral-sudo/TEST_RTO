@@ -462,7 +462,8 @@ td{padding:12px 14px;color:var(--t1);vertical-align:middle;white-space:nowrap;}
     <div class="mhdr"><h2>Confirm Download</h2><button class="mclose" onclick="closeDlConf()">&#10005;</button></div>
     <div class="dlcb"><div class="dlct" id="dlct"></div><div class="dlcm" id="dlcm"></div>
       <div class="dlcbtns">
-        <button class="dlc-y" onclick="dlGo('complete')">&#11015; Full Dataset</button>
+        <button class="dlc-y" onclick="dlGo('complete')">&#11015; Complete Dataset</button>
+        <button class="dlc-y" onclick="dlGo('ap')" style="background:var(--green)">&#11015; Action Pending Only</button>
         <button class="dlc-y" onclick="dlGo('corrective')" style="background:var(--purple)">&#8635; Corrective (Mismatch only)</button>
         <button class="dlc-n" onclick="closeDlConf()">&#10005; Cancel</button>
       </div>
@@ -1036,7 +1037,9 @@ function rdRows(){
         const isMismatchRow=o.actionMismatch;
         const selectDefault=`<option value="" disabled${isMismatchRow||!curAct?' selected':''}>— Select correct action —</option>`;
         const mismatchOptHtml=isMismatchRow&&curAct?`<option value="" disabled style="color:#DC2626;background:#FEF2F2;font-weight:700;">⚠ "${curAct}" — Invalid for this order</option><option value="" disabled style="color:#94A3B8;font-size:11px;">──────────────────</option>`:'';
-        const optsHtml=aOpts.map(a=>`<option value="${a}">${a}</option>`).join('');
+        const filteredOpts=isMismatchRow?aOpts.filter(a=>a!==curAct):aOpts;
+        const pendingAction=ch.action;
+        const optsHtml=filteredOpts.map(a=>`<option value="${a}"${a===pendingAction?' selected':''}>${a}</option>`).join('');
         const selCls='isel'+(ch.action!==undefined?' ch':'')+(isMismatchRow?' isel-mismatch':'');
         actHtml=`<div class="ec"><select class="${selCls}" onchange="onActChg('${o.orderId}',this.value,this)">${selectDefault}${mismatchOptHtml}${optsHtml}</select>${curAct&&!aeLk&&!isMismatchRow?`<button class="del-btn" onclick="delAct('${o.orderId}')" title="Clear action">✕</button>`:''}${curAct&&!isMismatchRow?`<button class="hist-btn" onclick="openHist('${o.orderId}')" title="History">H</button>`:''}</div>`;
       }else{actHtml=`<span class="ro">${curAct||'—'}</span>`;}
