@@ -1384,30 +1384,8 @@ function downloadMismatchedOrders(){
   if(!_uplBatch||!_uplBatch.results)return;
   const mismatches=_uplBatch.results.filter(r=>!r.valid&&(r.errorType==='mismatch_action'||r.errorType==='mismatch_update'));
   if(!mismatches.length){toast('No mismatched orders found','amber');return;}
-  const wb=XLSX.utils.book_new();
-  // Use original uploaded data (stored in _origMap) so all uploaded fields are present
-  const origMap=_uplBatch._origMap||new Map();
-  const ws=XLSX.utils.aoa_to_sheet([
-    ['Order ID','Action','Update','Email Subject Line','CN Number','Reference Number','COD Amount','Error Type','Error Detail'],
-    ...mismatches.map(r=>{
-      const orig=origMap.get(r.orderId)||{};
-      return[
-        r.orderId,
-        orig.action||'',
-        orig.update||'',
-        orig.emailSubjectLine||'',
-        orig.cnNumber||'',
-        orig.refNumber||'',
-        orig.codAmount||'',
-        r.errorType==='mismatch_action'?'Wrong Action':'Wrong Update',
-        r.error||''
-      ];
-    })
-  ]);
-  ws['!cols']=[{wch:22},{wch:35},{wch:35},{wch:30},{wch:18},{wch:18},{wch:14},{wch:16},{wch:80}];
-  XLSX.utils.book_append_sheet(wb,ws,'Mismatched Orders');
-  XLSX.writeFile(wb,'Mismatched_Orders_'+new Date().toISOString().slice(0,10)+'.xlsx');
-  toast('Downloaded '+mismatches.length+' mismatched orders');
+  // Use full corrective download (same format as main RTO sheet) instead of local mini-build
+  _doDownload('corrective',SCITY||null);
 }
 
 async function openHist(id){
