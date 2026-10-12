@@ -521,7 +521,7 @@ td{padding:12px 14px;color:var(--t1);vertical-align:middle;white-space:nowrap;}
         <div class="kpi pu click" onclick="openCRModal()"><div class="ki">&#128203;</div><div class="kl">Closure Remarks</div><div class="kv" id="k-cr">&mdash;</div><div class="ks" id="k-crs">Awaiting SRN closure</div><div class="kh">Click to view breakdown</div></div>
         <div class="kpi aa"><div class="ki">&#9888;</div><div class="kl">Action Pending</div><div class="kv" id="k-ap">&mdash;</div><div class="ks" id="k-aps">Needs immediate update</div></div>
         <div class="kpi ap click" id="k-ls-card" onclick="openLossModal()"><div class="ki">&#128176;</div><div class="kl">Total Loss / Lost</div><div class="kv" id="k-ls">&mdash;</div><div class="ks" id="k-lss">Gross: &mdash;</div><div class="kh">Click to view options</div></div>
-        <div class="kpi click" id="k-cr-ha-card" onclick="dlCRHighAgeing()" style="display:none;--acc:#7B1034;background:#FDF2F5;border-color:#F0C4D0;"><div class="ki" style="background:#F7D6E0;">&#9201;</div><div class="kl" style="color:#7B1034;">Closure Remarks &gt;10 Days</div><div class="kv" id="k-cr-ha" style="color:#7B1034;font-weight:900;">&mdash;</div><div class="ks" id="k-cr-ha-sub" style="color:#9B3050;font-weight:700;">Ageing &gt;10 days</div><div class="kh" style="color:#9B3050;">Click to download report</div></div>
+        <div class="kpi click" id="k-cr-ha-card" onclick="dlCRHighAgeing()" style="display:none;--acc:#7B1034;background:#FDF2F5;border-color:#F0C4D0;"><div class="ki" style="background:#F7D6E0;">&#9201;</div><div class="kl" style="color:#7B1034;">SRN Pending &gt;10 Days</div><div class="kv" id="k-cr-ha" style="color:#7B1034;font-weight:900;">&mdash;</div><div class="ks" id="k-cr-ha-sub" style="color:#9B3050;font-weight:700;">Needs escalation</div><div class="kh" style="color:#9B3050;">Click to download report</div></div>
       </div>
     </div>
     <div class="sec">
@@ -1257,6 +1257,8 @@ async function handleUpload(inp){
     const res={success:true,results:allVResults};
     hideOv();
     _uplBatch=res;
+    // Store original uploaded rows by orderId so mismatch download can include all uploaded fields
+    _uplBatch._origMap=new Map(data.map(d=>[d.orderId,d]));
     const totalUploaded=data.length;
     const correctMatch=res.results.filter(r=>r.valid&&!r.noChange).length;
     const noChange=res.results.filter(r=>r.valid&&r.noChange).length;
@@ -1380,22 +1382,26 @@ function downloadMismatchedOrders(){
   const mismatches=_uplBatch.results.filter(r=>!r.valid&&(r.errorType==='mismatch_action'||r.errorType==='mismatch_update'));
   if(!mismatches.length){toast('No mismatched orders found','amber');return;}
   const wb=XLSX.utils.book_new();
-  // Include resolved fields so user can correct and re-upload
+  // Use original uploaded data (stored in _origMap) so all uploaded fields are present
+  const origMap=_uplBatch._origMap||new Map();
   const ws=XLSX.utils.aoa_to_sheet([
     ['Order ID','Action','Update','Email Subject Line','CN Number','Reference Number','COD Amount','Error Type','Error Detail'],
-    ...mismatches.map(r=>[
-      r.orderId,
-      r.resolved?.action||'',
-      r.resolved?.update||'',
-      r.resolved?.emailSubjectLine||'',
-      r.resolved?.cnNumber||'',
-      r.resolved?.refNumber||'',
-      r.resolved?.codAmount||'',
-      r.errorType==='mismatch_action'?'Wrong Action':'Wrong Update',
-      r.error||''
-    ])
+    ...mismatches.map(r=>{
+      const orig=origMap.get(r.orderId)||{};
+      return[
+        r.orderId,
+        orig.action||'',
+        orig.update||'',
+        orig.emailSubjectLine||'',
+        orig.cnNumber||'',
+        orig.refNumber||'',
+        orig.codAmount||'',
+        r.errorType==='mismatch_action'?'Wrong Action':'Wrong Update',
+        r.error||''
+      ];
+    })
   ]);
-  ws['!cols']=[{wch:22},{wch:30},{wch:30},{wch:25},{wch:18},{wch:18},{wch:14},{wch:16},{wch:80}];
+  ws['!cols']=[{wch:22},{wch:35},{wch:35},{wch:30},{wch:18},{wch:18},{wch:14},{wch:16},{wch:80}];
   XLSX.utils.book_append_sheet(wb,ws,'Mismatched Orders');
   XLSX.writeFile(wb,'Mismatched_Orders_'+new Date().toISOString().slice(0,10)+'.xlsx');
   toast('Downloaded '+mismatches.length+' mismatched orders');
@@ -1501,7 +1507,7 @@ async function _doDownload(type,city){
       ws2['!cols']=[{wch:12},{wch:14},{wch:14},{wch:18},{wch:12},{wch:40},{wch:32},{wch:30}];ws2['!freeze']={xSplit:0,ySplit:1};
       XLSX.utils.book_append_sheet(wb,ws2,'Action Reference');
     }
-    const typeLabel=type==='ap'?'_AP':type==='corrective'?'_Corrective':type==='loss'?'_Loss':'';
+    const typeLabel=type==='ap'?'_AP':type==='corrective'?'_Corrective':type==='loss'?'_Loss':type==='crHighAgeing'?'_SRNPending10Days':'';
     XLSX.writeFile(wb,(city||'PanIndia')+'_RTO'+typeLabel+'_'+new Date().toISOString().slice(0,10)+'.xlsx',{cellStyles:true});
     toast('Downloaded '+(rows.length-1)+' orders'+(mismatchCount?' · '+mismatchCount+' mismatch rows highlighted':''),'green');
   }catch(e){hideOv();toast('Download error: '+e.message,'red');}
