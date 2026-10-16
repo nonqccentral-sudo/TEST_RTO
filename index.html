@@ -784,9 +784,7 @@ function rdKPI(k){
   $('k-tot',_kTotal.toLocaleString('en-IN'));$('k-tots',fmtN(k.totalAmount||0)+' total GMV');
   $('k-gr',parseFloat((_srnN/_base*100).toFixed(1))+'%');
   const _grs=document.getElementById('k-grs');if(_grs)_grs.textContent='('+_srnN+' orders) · '+fmtN(k.srnAmt||0);
-  const _crPctRaw=(_crN/_base)*100;
-  // Preserve visibility for very small but non-zero closure percentages.
-  $('k-cr',(_crPctRaw>0&&_crPctRaw<0.1?_crPctRaw.toFixed(2):_crPctRaw.toFixed(1))+'%');
+  $('k-cr',parseFloat((_crN/_base*100).toFixed(1))+'%');
   $('k-crs','('+_crN+' total) · '+(k.srnPendingCR||0)+' SRN pending · '+fmtN(k.crAmt||0));
   $('k-ap',parseFloat((_apN/_base*100).toFixed(1))+'%');$('k-aps','('+_apN+' orders) · '+fmtN(k.apAmt||0));
   const _lossNet=k.lossNetAmount||k.lossTotal||0;const _lossRec=k.recoveredAmount||0;
@@ -977,7 +975,7 @@ function afterOrdersCity(){
     const _kTot2=(_cc&&_cc.total)||(_sk&&_sk.totalRTO)||0;const _b2=_kTot2||1;
     const snr=(_sk&&_sk.srnCompleted)||0;const cr=(_sk&&_sk.closureRemarks)||0;
     const _apDer=Math.max(0,_kTot2-snr-cr);const _apP=Math.round(_apDer/_b2*100);
-    const _crRawP=(cr/_b2)*100;const _crP=(_crRawP>0&&_crRawP<0.1)?_crRawP.toFixed(2):Math.round(_crRawP);const _snP=Math.round(snr/_b2*100);
+    const _crP=Math.round(cr/_b2*100);const _snP=Math.round(snr/_b2*100);
     setHTML('cd-kpis',
       `<div class="kpi ab"><div class="ki">📦</div><div class="kl">Total RTO</div><div class="kv">${_kTot2.toLocaleString('en-IN')}</div><div class="ks">${fmtN((_sk&&_sk.totalAmount)||0)} GMV</div></div>`
       +`<div class="kpi ag"><div class="ki">✅</div><div class="kl">SRN Completed</div><div class="kv">${_snP}%</div><div class="ks">(${snr}) · Visible 24h</div></div>`
@@ -1076,9 +1074,7 @@ function rdRows(){
     const srnBadge=o.srnStatus?`<span class="b ${o.srnCompleted?'bg':'bs'}">${o.srnStatus}</span>`:'—';
     const svcBadge=o.serviceFlag?`<span class="b bt">${o.serviceFlag}</span>`:'—';
     const ageBadge=o.isHighAgeing?`<span class="b br">${o.ageingDays}d HA</span>`:o.isMidAgeing?`<span class="b ba">${o.ageingDays}d</span>`:`<span class="b bs">${o.ageingDays||0}d</span>`;
-    const _needsEmailSubj=(curAct==='Connected to Warehouse \u2013 SRN Pending'||curAct==='Connected to Retail \u2013 SRN Pending');
-    const _existSubj=ch.emailSubjectLine!==undefined?ch.emailSubjectLine:(o.emailSubjectLine||'');
-    const emailSubjHtml=_needsEmailSubj?`<div class="ec"><span class="ref-lbl" style="color:var(--red);font-weight:700;">* Email Subject</span><input class="cn-inp" style="min-width:180px;" type="text" placeholder="Required\u2026" value="${_existSubj.replace(/"/g,'&quot;')}" onchange="onEmailSubj('${o.orderId}',this.value)"/></div>`:'';
+    const emailSubjHtml='';
 
 
     tb.insertAdjacentHTML('beforeend',`<tr class="${cl}">
