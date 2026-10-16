@@ -610,7 +610,7 @@ td{padding:12px 14px;color:var(--t1);vertical-align:middle;white-space:nowrap;}
 
 <script>
 
-const API='https://script.google.com/macros/s/AKfycbxUZmiclu54QZZXFsa2hM7IlSipWExJnUfCTAaXUQoNIMpNM1szWbg_81B9l-32KB8/exec';
+const API='https://script.google.com/macros/s/AKfycbzE2AR4lwSguuTdao2dV19AovJbaZbZwh4_T6AO-npbD_hbzkAMlJRsLnLeWw0ju-Vycg/exec';
 const LC_KEY='rto_sum_v2343';
 const LC_TTL=20*60*1000;  // 20 min (was 15)
 const PAGE_SZ=100;
@@ -784,7 +784,9 @@ function rdKPI(k){
   $('k-tot',_kTotal.toLocaleString('en-IN'));$('k-tots',fmtN(k.totalAmount||0)+' total GMV');
   $('k-gr',parseFloat((_srnN/_base*100).toFixed(1))+'%');
   const _grs=document.getElementById('k-grs');if(_grs)_grs.textContent='('+_srnN+' orders) · '+fmtN(k.srnAmt||0);
-  $('k-cr',parseFloat((_crN/_base*100).toFixed(1))+'%');
+  const _crPctRaw=(_crN/_base)*100;
+  // Preserve visibility for very small but non-zero closure percentages.
+  $('k-cr',(_crPctRaw>0&&_crPctRaw<0.1?_crPctRaw.toFixed(2):_crPctRaw.toFixed(1))+'%');
   $('k-crs','('+_crN+' total) · '+(k.srnPendingCR||0)+' SRN pending · '+fmtN(k.crAmt||0));
   $('k-ap',parseFloat((_apN/_base*100).toFixed(1))+'%');$('k-aps','('+_apN+' orders) · '+fmtN(k.apAmt||0));
   const _lossNet=k.lossNetAmount||k.lossTotal||0;const _lossRec=k.recoveredAmount||0;
@@ -975,7 +977,7 @@ function afterOrdersCity(){
     const _kTot2=(_cc&&_cc.total)||(_sk&&_sk.totalRTO)||0;const _b2=_kTot2||1;
     const snr=(_sk&&_sk.srnCompleted)||0;const cr=(_sk&&_sk.closureRemarks)||0;
     const _apDer=Math.max(0,_kTot2-snr-cr);const _apP=Math.round(_apDer/_b2*100);
-    const _crP=Math.round(cr/_b2*100);const _snP=Math.round(snr/_b2*100);
+    const _crRawP=(cr/_b2)*100;const _crP=(_crRawP>0&&_crRawP<0.1)?_crRawP.toFixed(2):Math.round(_crRawP);const _snP=Math.round(snr/_b2*100);
     setHTML('cd-kpis',
       `<div class="kpi ab"><div class="ki">📦</div><div class="kl">Total RTO</div><div class="kv">${_kTot2.toLocaleString('en-IN')}</div><div class="ks">${fmtN((_sk&&_sk.totalAmount)||0)} GMV</div></div>`
       +`<div class="kpi ag"><div class="ki">✅</div><div class="kl">SRN Completed</div><div class="kv">${_snP}%</div><div class="ks">(${snr}) · Visible 24h</div></div>`
