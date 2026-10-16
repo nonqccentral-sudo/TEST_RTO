@@ -1076,7 +1076,9 @@ function rdRows(){
     const srnBadge=o.srnStatus?`<span class="b ${o.srnCompleted?'bg':'bs'}">${o.srnStatus}</span>`:'—';
     const svcBadge=o.serviceFlag?`<span class="b bt">${o.serviceFlag}</span>`:'—';
     const ageBadge=o.isHighAgeing?`<span class="b br">${o.ageingDays}d HA</span>`:o.isMidAgeing?`<span class="b ba">${o.ageingDays}d</span>`:`<span class="b bs">${o.ageingDays||0}d</span>`;
-    const emailSubjHtml='';
+    const _needsEmailSubj=(curAct==='Connected to Warehouse \u2013 SRN Pending'||curAct==='Connected to Retail \u2013 SRN Pending');
+    const _existSubj=ch.emailSubjectLine!==undefined?ch.emailSubjectLine:(o.emailSubjectLine||'');
+    const emailSubjHtml=_needsEmailSubj?`<div class="ec"><span class="ref-lbl" style="color:var(--red);font-weight:700;">* Email Subject</span><input class="cn-inp" style="min-width:180px;" type="text" placeholder="Required\u2026" value="${_existSubj.replace(/"/g,'&quot;')}" onchange="onEmailSubj('${o.orderId}',this.value)"/></div>`:'';
 
 
     tb.insertAdjacentHTML('beforeend',`<tr class="${cl}">
