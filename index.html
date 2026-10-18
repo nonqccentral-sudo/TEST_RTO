@@ -1075,6 +1075,10 @@ function rdRows(){
       }
     }
     }// end non-SRN-completed block
+    if(curAct==='Marked delivered on THOR but cancelled on admin' || curAct==='Marked delivered on THOR but cancelled on ADMIN'){
+      const proofUrl=ch.thorProofUrl||o.thorProofUrl||'';
+      updHtml += `<div class="ec" style="margin-top:6px;display:block;"><span class="ref-lbl" style="color:var(--red);font-weight:700;">* Image proof required</span><input type="file" accept="image/*" capture="environment" onchange="uploadTHORProofForOrder('${o.orderId}',this)" style="max-width:220px;font-size:11px;"/><span id="thor-proof-${o.orderId}" class="hint" style="color:${proofUrl?'var(--green)':'var(--red)'}">${proofUrl?'✓ Proof attached':'Attach proof before saving'}</span></div>`;
+    }
     const srnBadge=o.srnStatus?`<span class="b ${o.srnCompleted?'bg':'bs'}">${o.srnStatus}</span>`:'—';
     const svcBadge=o.serviceFlag?`<span class="b bt">${o.serviceFlag}</span>`:'—';
     const ageBadge=o.isHighAgeing?`<span class="b br">${o.ageingDays}d HA</span>`:o.isMidAgeing?`<span class="b ba">${o.ageingDays}d</span>`:`<span class="b bs">${o.ageingDays||0}d</span>`;
@@ -1139,6 +1143,7 @@ function _patchOrdersAndRefreshUI(saveResults,changeMap){
     if(ch.cnNumber!==undefined)o.cnNumber=ch.cnNumber;
     if(ch.refNumber!==undefined)o.referenceNumber=ch.refNumber;
     if(ch.codAmount!==undefined)o.codAmount=ch.codAmount;
+    if(ch.thorProofUrl!==undefined)o.thorProofUrl=ch.thorProofUrl;
     const act=o.currentAction||'';const upd=o.currentUpdate||'';
     const srnOnly=new Set(['Connected to Warehouse \u2013 SRN Pending','Connected to Retail \u2013 SRN Pending','Pending with 3PL','Order Lost/Rider Absconded']);
     const closing=new Set(['CN Received','COD Collected','Loss','Order Lost/Rider Absconded']);
@@ -1164,9 +1169,31 @@ function _refreshKPIFromMemory(){
 }
 function _getClientActionRules(){if(SUM&&SUM.actionMap)return SUM.actionMap;return null;}
 
+async function uploadTHORProofForOrder(orderId,input){
+  const file=input?.files?.[0]; if(!file)return;
+  if(!file.type || !file.type.startsWith('image/')){toast('Please attach an image proof','red');input.value='';return;}
+  if(file.size>8*1024*1024){toast('Image must be 8 MB or smaller','red');input.value='';return;}
+  try{
+    const dataUrl=await new Promise((resolve,reject)=>{const fr=new FileReader();fr.onload=()=>resolve(fr.result);fr.onerror=reject;fr.readAsDataURL(file);});
+    const base64=String(dataUrl).split(',')[1];
+    const label=$('thor-proof-'+orderId);if(label)label.textContent='Uploading proof…';
+    const res=await fetch(API,{method:'POST',headers:{'Content-Type':'text/plain;charset=UTF-8'},body:JSON.stringify({action:'uploadTHORProof',email:USER?.email||'',orderId,imageBase64:base64,mimeType:file.type,fileName:orderId+'_delivery_proof_'+file.name})}).then(r=>r.json());
+    if(!res?.success)throw new Error(res?.error||'Proof upload failed');
+    CHANGES[orderId]=CHANGES[orderId]||{};CHANGES[orderId].thorProofUrl=res.url;
+    const o=ORDERS.find(x=>x.orderId===orderId);if(o)o.thorProofUrl=res.url;
+    if(label){label.textContent='✓ Proof attached';label.style.color='var(--green)';}
+    toast('Image proof uploaded to Drive','green');updSbar();
+  }catch(e){const label=$('thor-proof-'+orderId);if(label)label.textContent='Upload failed — retry proof';toast('Proof upload failed: '+e.message,'red');input.value='';}
+}
+
 async function saveAll(){
   const entries=Object.entries(CHANGES).map(([id,c])=>({orderId:id,...c}));
   if(!entries.length)return;
+  for(const [id,ch] of Object.entries(CHANGES)){
+    const o=ORDERS.find(x=>x.orderId===id);
+    const act=ch.action!==undefined?ch.action:(o?.currentAction||'');
+    if((act==='Marked delivered on THOR but cancelled on admin'||act==='Marked delivered on THOR but cancelled on ADMIN') && !(ch.thorProofUrl||o?.thorProofUrl)){toast('Attach the compulsory image proof for order '+id+' before saving','red');return;}
+  }
   $('sbtn').disabled=true;
   const changeSnapshot=Object.assign({},CHANGES);
   const SAVE_CHUNK=4; // max 4 orders per GAS call — keeps execution well under timeout
