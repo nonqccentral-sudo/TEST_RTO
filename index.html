@@ -500,7 +500,8 @@ td{padding:12px 14px;color:var(--t1);vertical-align:middle;white-space:nowrap;}
   </div>
   <div class="fbar">
     <div class="fg"><label>City</label><select id="f-city" onchange="onCityFilter()"><option value="">All Cities</option></select></div>
-    <div class="fg"><label>Partner</label><select id="f-partner"><option value="">All</option><option>INHOUSE</option><option>3PL</option></select></div>
+    <div class="fg"><label>Partner</label><select id="f-partner"><option value="">All</option><option value="INHOUSE">INHOUSE</option><option value="3PL">3PL</option></select></div>
+    <div class="fg"><label>Rider Type</label><select id="f-rider"><option value="">All</option><option value="1mg">1mg</option><option value="3P">3P</option></select></div>
     <div class="fg"><label>BU</label><select id="f-bu"><option value="">All</option><option>E-Pharma</option><option>PSP</option></select></div>
     <div class="fg"><label>Store</label><select id="f-store"><option value="">All</option><option value="WAREHOUSE">Warehouse</option><option value="RETAIL">Retail</option></select></div>
     <div class="fg"><label>Stage</label><select id="f-stage"><option value="">All</option><option>Pre MDQ</option><option>Post MDQ</option></select></div>
@@ -690,10 +691,11 @@ function initDash(){
 
 function _fp(){
   const ps=[];
-  const partner=$('f-partner')?.value;const bu=$('f-bu')?.value;const store=$('f-store')?.value;
+  const partner=$('f-partner')?.value;const rider=$('f-rider')?.value;const bu=$('f-bu')?.value;const store=$('f-store')?.value;
   const stage=$('f-stage')?.value;const age=$('f-age')?.value;const act=$('f-act')?.value;
   const fr=$('f-from')?.value;const to=$('f-to')?.value;const sch=($('tsch')?.value||'').trim();
   if(partner)ps.push('fPartner='+encodeURIComponent(partner));
+  if(rider)ps.push('fRiderType='+encodeURIComponent(rider));
   if(bu)ps.push('fBU='+encodeURIComponent(bu));
   if(store)ps.push('fStore='+encodeURIComponent(store));
   if(stage)ps.push('fStage='+encodeURIComponent(stage));
@@ -709,7 +711,7 @@ function _fp(){
 function _cq(){return SCITY?'&fCity='+encodeURIComponent(SCITY):'';}
 function _hasFilters(){
   if(QF!=='Overall')return true;if(SCITY)return true;
-  if(['f-partner','f-bu','f-store','f-stage','f-age','f-from','f-to'].some(id=>$(id)?.value))return true;
+  if(['f-partner','f-rider','f-bu','f-store','f-stage','f-age','f-from','f-to'].some(id=>$(id)?.value))return true;
   if(!USER?.isAdmin&&!isRA()&&$('f-act')?.value)return true;
   return false;
 }
@@ -939,7 +941,7 @@ function apF(){
   }).catch(e=>{hideFSpin();hideOv();toast('Filter failed: '+e.message,'red');});
 }
 function rstF(){
-  ['f-partner','f-bu','f-store','f-stage','f-age','f-act','f-from','f-to'].forEach(id=>{const el=$(id);if(el)el.value='';});
+  ['f-partner','f-rider','f-bu','f-store','f-stage','f-age','f-act','f-from','f-to'].forEach(id=>{const el=$(id);if(el)el.value='';});
   if(USER?.isAdmin||isRA()){$('f-city').value='';SCITY='';}
   GAP=false;APF=false;QF='Overall';
   document.querySelectorAll('.qc-tabs button').forEach(b=>b.classList.toggle('on',b.dataset.v==='Overall'));
