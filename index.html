@@ -488,7 +488,8 @@ td{padding:12px 14px;color:var(--t1);vertical-align:middle;white-space:nowrap;}
   </div>
   <div class="dl-bar hide" id="adl-bar">
     <span class="dl-lbl">&#11015; Downloads</span>
-    <button class="dlb dlb-pi" onclick="triggerDl('panIndia')">&#11015; PAN India</button>
+    <button class="dlb dlb-pi" id="dlb-pan" onclick="triggerDl('panIndia')">&#11015; PAN India</button>
+    <button class="dlb dlb-pi" id="region-upload-btn" onclick="triggerUpload()" style="background:var(--purplel);border-color:#D8B4FE;color:var(--purple);display:none;">&#11014; Upload Updates</button>
     <button class="dlb dlb-flt" id="dlbflt" onclick="triggerDl('filtered')" disabled>&#9660; Filtered</button>
     <button class="dlb dlb-loss" onclick="triggerDl('loss')">&#11015; Loss Report</button>
     <div style="margin-left:auto;display:flex;gap:8px;align-items:center;">
@@ -669,7 +670,14 @@ function initDash(){
   $('dash').style.display='block';
   const ia=USER?.isAdmin;const ra=isRA();
   $('adl-bar').classList.toggle('hide',!ia&&!ra);
-  if(USER?.isViewOnly||USER?.isGlobalViewer){$('upload-btn').style.display='none';$('sbtn').style.display='none';}else{$('sbtn').style.display='';}
+  // Region Admins get the same visible download/upload controls as Admins,
+  // while backend authorization continues to restrict them to mapped region cities.
+  const canUploadRole = !USER?.isViewOnly && !USER?.isGlobalViewer && (ia || ra || !!USER?.city || (USER?.cities||[]).length > 0);
+  const topUpload = $('region-upload-btn');
+  if(topUpload) topUpload.style.display = canUploadRole && (ia || ra) ? '' : 'none';
+  const panBtn = $('dlb-pan');
+  if(panBtn) panBtn.innerHTML = ra ? '&#11015; Region Dataset' : '&#11015; PAN India';
+  if(USER?.isViewOnly||USER?.isGlobalViewer){$('upload-btn').style.display='none';$('sbtn').style.display='none';if(topUpload)topUpload.style.display='none';}else{$('sbtn').style.display='';}
   $('fgact').style.display=(ia||ra)?'none':'flex';
   $('qc-tabs').style.display='';
   $('city-perf-sec').style.display=(ia||ra||USER?.isGlobalViewer)?'':'none';
@@ -855,7 +863,7 @@ function openDet(city){
   $('cd-ttl',city+(canEdit(city)?'':' — View Only'));
   const dlDiv=$('cd-dl-btns');
   if(canEdit(city)||USER?.isViewOnly){dlDiv.innerHTML=`<button onclick="triggerCityDl('${city}')" style="padding:6px 14px;border-radius:var(--rs);font-size:12px;font-weight:600;cursor:pointer;border:1.5px solid #BFDBFE;background:var(--bluel);color:var(--blue);">↓ Download</button>`;}else{dlDiv.innerHTML='';}
-  $('upload-btn').style.display=canEdit(city)?'':'none';
+  $('upload-btn').style.display=(canEdit(city)||(isRA()&&inRegion(city)))?'':'none';
   $('cd-kpis').innerHTML='<div class="kpi ab"><div class="ki">⏳</div><div class="kl">Loading…</div><div class="kv">—</div></div>';
   $('pivot-wrap').style.display='none';$('ap-cnt','— pending');
   document.querySelectorAll('.ccard').forEach(el=>{const n=el.querySelector('.cname');el.classList.toggle('sel',n&&n.textContent.trim()===city);});
@@ -885,7 +893,7 @@ function reopenDet(){
     SCITY=multi?'':USER.city.toUpperCase();$('cd-ttl',(multi?USER.cities.join(' / '):USER.city)+' Orders');
     const _dlD=$('cd-dl-btns');
     if(_dlD)_dlD.innerHTML=`<button onclick="triggerCityDl('${multi?'':USER.city}')" style="padding:6px 14px;border-radius:var(--rs);font-size:12px;font-weight:600;cursor:pointer;border:1.5px solid #BFDBFE;background:var(--bluel);color:var(--blue);">&#11015; Download</button>`;
-    $('upload-btn').style.display=canEdit(SCITY)?'':'none';$('cdet').classList.add('vis');$('cdet').style.display='block';$('home-btn').classList.add('vis');loadOrders();
+    $('upload-btn').style.display=(canEdit(SCITY)||(isRA()&&inRegion(SCITY)))?'':'none';$('cdet').classList.add('vis');$('cdet').style.display='block';$('home-btn').classList.add('vis');loadOrders();
   }
 }
 function goHome(){window.scrollTo({top:0,behavior:'smooth'});closeDet();}
@@ -896,7 +904,7 @@ function openCityAP(city){
     $('cd-ttl',city+(canEdit(city)?'':' — View Only'));
     const _dlDiv=$('cd-dl-btns');
     if(canEdit(city)||USER?.isViewOnly){_dlDiv.innerHTML=`<button onclick="triggerCityDl('${city}')" style="padding:6px 14px;border-radius:var(--rs);font-size:12px;font-weight:600;cursor:pointer;border:1.5px solid #BFDBFE;background:var(--bluel);color:var(--blue);">&#11015; Download</button>`;}else{_dlDiv.innerHTML='';}
-    $('upload-btn').style.display=canEdit(city)?'':'none';
+    $('upload-btn').style.display=(canEdit(city)||(isRA()&&inRegion(city)))?'':'none';
     $('cd-kpis').innerHTML='<div class="kpi ab"><div class="ki">&#8987;</div><div class="kl">Loading…</div><div class="kv">—</div></div>';
     $('pivot-wrap').style.display='none';$('ap-cnt','— pending');
     document.querySelectorAll('.ccard').forEach(el=>{const n=el.querySelector('.cname');el.classList.toggle('sel',n&&n.textContent.trim()===city);});
@@ -959,7 +967,7 @@ function onCityFilter(){
     $('cd-ttl',SCITY+(canEdit(SCITY)?'':' — View Only'));
     const dlDiv=$('cd-dl-btns');
     if(canEdit(SCITY)||USER?.isViewOnly){dlDiv.innerHTML=`<button onclick="triggerCityDl('${SCITY}')" style="padding:6px 14px;border-radius:var(--rs);font-size:12px;font-weight:600;cursor:pointer;border:1.5px solid #BFDBFE;background:var(--bluel);color:var(--blue);">&#11015; Download</button>`;}
-    $('upload-btn').style.display=canEdit(SCITY)?'':'none';$('home-btn').classList.add('vis');
+    $('upload-btn').style.display=(canEdit(SCITY)||(isRA()&&inRegion(SCITY)))?'':'none';$('home-btn').classList.add('vis');
   }else{SCITY='';$('cdet').classList.remove('vis');$('cdet').style.display='none';$('home-btn').classList.remove('vis');}
   _updFltDlBtn();
 }
