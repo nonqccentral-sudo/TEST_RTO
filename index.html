@@ -404,7 +404,7 @@ td{padding:12px 14px;color:var(--t1);vertical-align:middle;white-space:nowrap;}
       </div>
       <div style="display:flex;gap:10px;margin-left:auto;">
         <button onclick="closeUpload()" style="padding:8px 20px;border-radius:7px;border:1.5px solid var(--border);background:var(--surface);font-size:13px;font-weight:600;cursor:pointer;color:var(--t2);">Close</button>
-        <button id="usave-btn" onclick="confirmUploadSave()" style="display:none;padding:8px 22px;border-radius:7px;background:var(--green);color:#fff;border:none;font-size:13px;font-weight:700;cursor:pointer;">&#10003; Save Updates</button>
+        <button id="usave-btn" onclick="confirmUploadSave()" style="display:none;padding:8px 22px;border-radius:7px;background:var(--green);color:#fff;border:none;font-size:13px;font-weight:700;cursor:pointer;">&#10003; Save Valid Updates</button>
       </div>
     </div>
   </div>
@@ -502,7 +502,7 @@ td{padding:12px 14px;color:var(--t1);vertical-align:middle;white-space:nowrap;}
   <div class="fbar">
     <div class="fg"><label>City</label><select id="f-city" onchange="onCityFilter()"><option value="">All Cities</option></select></div>
     <div class="fg"><label>Partner</label><select id="f-partner"><option value="">All</option><option value="INHOUSE">INHOUSE</option><option value="3PL">3PL</option></select></div>
-    <div class="fg"><label>Rider Type</label><select id="f-rider"><option value="">All</option><option value="1mg">1mg</option><option value="3P">3P</option></select></div>
+    <div class="fg"><label>Rider Type</label><select id="f-rider"><option value="">All</option><option value="1mg">1mg</option><option value="3P">3P</option><option value="REVIEW">Review Required</option></select></div>
     <div class="fg"><label>BU</label><select id="f-bu"><option value="">All</option><option>E-Pharma</option><option>PSP</option></select></div>
     <div class="fg"><label>Store</label><select id="f-store"><option value="">All</option><option value="WAREHOUSE">Warehouse</option><option value="RETAIL">Retail</option></select></div>
     <div class="fg"><label>Stage</label><select id="f-stage"><option value="">All</option><option>Pre MDQ</option><option>Post MDQ</option></select></div>
@@ -647,7 +647,7 @@ async function doLogin(){
       USER._regionSet=res.isRegionAdmin?new Set((res.regionCities||[]).map(c=>c.toUpperCase())):null;
       localStorage.removeItem(LC_KEY);
       $('login-screen').classList.add('hide');
-      $('upill',(res.isAdmin?'Admin':(res.cities&&res.cities.length>1?res.cities.join(' / '):res.city))+' · '+email.split('@')[0]);
+      $('upill',(res.isAdmin?'Admin':(res.isRegionAdmin?('Region Admin · '+(res.region||'')):(res.isViewOnly?'VIEW_ONLY':(res.cities&&res.cities.length>1?res.cities.join(' / '):res.city))))+' · '+email.split('@')[0]);
       initDash();
     }else{$('l-err',res.error||'Invalid credentials.');$('l-btn').disabled=false;$('l-btn').textContent='Sign In →';}
   }catch(e){$('l-err','Network error. Please retry.');$('l-btn').disabled=false;$('l-btn').textContent='Sign In →';}
@@ -1090,11 +1090,13 @@ function rdRows(){
     const srnBadge=o.srnStatus?`<span class="b ${o.srnCompleted?'bg':'bs'}">${o.srnStatus}</span>`:'—';
     const svcBadge=o.serviceFlag?`<span class="b bt">${o.serviceFlag}</span>`:'—';
     const ageBadge=o.isHighAgeing?`<span class="b br">${o.ageingDays}d HA</span>`:o.isMidAgeing?`<span class="b ba">${o.ageingDays}d</span>`:`<span class="b bs">${o.ageingDays||0}d</span>`;
-    const emailSubjHtml='';
+    const _needsEmailSubj=(curAct==='Connected to Warehouse \u2013 SRN Pending'||curAct==='Connected to Retail \u2013 SRN Pending');
+    const _existSubj=ch.emailSubjectLine!==undefined?ch.emailSubjectLine:(o.emailSubjectLine||'');
+    const emailSubjHtml=_needsEmailSubj?`<div class="ec"><span class="ref-lbl" style="color:var(--red);font-weight:700;">* Email Subject</span><input class="cn-inp" style="min-width:180px;" type="text" placeholder="Required\u2026" value="${_existSubj.replace(/"/g,'&quot;')}" onchange="onEmailSubj('${o.orderId}',this.value)"/></div>`:'';
 
 
     tb.insertAdjacentHTML('beforeend',`<tr class="${cl}">
-      <td class="td-id">${o.orderId}${o.actionMismatch?'<br><span class="b ba" style="background:#FFF3CD;color:#856404;border-color:#FFECB5;font-size:9px">⚠ MISMATCH</span>':''}${o.actionPending&&!isChg&&!o.actionMismatch?'<br><span class="b br flash">Action Pending</span>':''}${o.isGreen?'<br><span class="b bg">✓ SRN/Closed</span>':''}</td>
+      <td class="td-id">${o.orderId}${o.riderTypeReview?'<br><span class="b ba" title="Unknown last_MDQ value — review classification" style="background:#FFF3CD;color:#856404;border-color:#FFECB5;font-size:9px">⚠ RIDER REVIEW</span>':''}${o.actionMismatch?'<br><span class="b ba" style="background:#FFF3CD;color:#856404;border-color:#FFECB5;font-size:9px">⚠ MISMATCH</span>':''}${o.actionPending&&!isChg&&!o.actionMismatch?'<br><span class="b br flash">Action Pending</span>':''}${o.isGreen?'<br><span class="b bg">✓ SRN/Closed</span>':''}</td>
       <td>${o.city||'—'}</td><td>${fmtN(o.gmv||0)}</td>
       <td><span class="b bs">${o.storeType||'—'}</span></td>
       <td><span class="b ${o.partner==='INHOUSE'?'bb':'ba'}">${o.partner||'—'}</span></td>
@@ -1261,8 +1263,8 @@ async function handleUpload(inp){
   }
   if(hdrRowIdx<0){hideOv();toast('Cannot find Order ID column. Upload a file downloaded from this dashboard.','red');inp.value='';return;}
   const ci=hdr.findIndex(h=>h==='order id'||h.includes('shipment_order'));
-  const ai=hdr.findIndex(h=>(h==='action'||h==='action / remark'||h==='action / update')&&!h.includes('edit')&&!h.includes('valid actions'));
-  const ui=hdr.findIndex(h=>(h==='update'||h==='allowed update(s)'||h==='allowed updates')&&!h.includes('edit')&&!h.includes('valid'));
+  const ai=hdr.findIndex(h=>h==='action'&&!h.includes('edit')&&!h.includes('valid actions'));
+  const ui=hdr.findIndex(h=>h==='update'&&!h.includes('edit')&&!h.includes('valid'));
   const esi=hdr.findIndex(h=>h.includes('email subject'));
   const cni=hdr.findIndex(h=>h.includes('cn number')||h==='cn');
   const rni=hdr.findIndex(h=>h==='reference number'||h==='ref number'||(h.includes('ref')&&!h.includes('valid')&&!h.includes('amount')));
@@ -1342,9 +1344,7 @@ async function handleUpload(inp){
       return`<div class="ures fail" style="${isMismatch?'border-color:#FFC107;background:#FFFDE7;':''}">`+`<span class="ui-icon" style="${isMismatch?'color:#856404;':''}">✗</span>`+`<div class="ui-id">${r.orderId}</div>`+`<div class="ui-msg" style="${isMismatch?'color:#856404;':''}">${r.error||'Unknown error'}</div></div>`;
     }).join('');
     setHTML('ubody',mismatchBanner+rowHtml);
-    // Keep a single Save Updates action available for the complete uploaded-order preview.
-    // The server-validated change set is applied on save; the preview itself retains every uploaded row.
-    $('usave-btn').style.display=(!isNoChangesScenario && totalUploaded>0)?'':'none';
+    $('usave-btn').style.display=correctMatch>0?'':'none';
     $('upload-modal').classList.remove('hide');
   }catch(e){hideOv();toast('Validation failed — check your connection and retry upload.','red');}
   inp.value='';
@@ -1418,8 +1418,8 @@ async function saveUploadChanges(){
 function confirmUploadSave(){
   if(!_uplBatch||!_uplBatch.results)return;
   const validCount=_uplBatch.results.filter(r=>r.valid&&!r.noChange).length;
-  if(!validCount){toast('There are no saveable changes in this uploaded order list','amber');return;}
-  const yes=window.confirm('Save the available changes from this uploaded order list? Orders without a saveable change will remain unchanged.');
+  if(!validCount){toast('No changes to save','amber');return;}
+  const yes=window.confirm('Do you want to save '+validCount+' action'+(validCount===1?'':'s')+'?');
   if(!yes)return;
   saveUploadChanges();
 }
