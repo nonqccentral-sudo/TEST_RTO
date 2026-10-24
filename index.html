@@ -1263,8 +1263,8 @@ async function handleUpload(inp){
   }
   if(hdrRowIdx<0){hideOv();toast('Cannot find Order ID column. Upload a file downloaded from this dashboard.','red');inp.value='';return;}
   const ci=hdr.findIndex(h=>h==='order id'||h.includes('shipment_order'));
-  const ai=hdr.findIndex(h=>h==='action'&&!h.includes('edit')&&!h.includes('valid actions'));
-  const ui=hdr.findIndex(h=>h==='update'&&!h.includes('edit')&&!h.includes('valid'));
+  const ai=hdr.findIndex(h=>(h==='action'||h==='action / remark'||h==='action / update')&&!h.includes('edit')&&!h.includes('valid actions'));
+  const ui=hdr.findIndex(h=>(h==='update'||h==='allowed update(s)'||h==='allowed updates')&&!h.includes('edit')&&!h.includes('valid'));
   const esi=hdr.findIndex(h=>h.includes('email subject'));
   const cni=hdr.findIndex(h=>h.includes('cn number')||h==='cn');
   const rni=hdr.findIndex(h=>h==='reference number'||h==='ref number'||(h.includes('ref')&&!h.includes('valid')&&!h.includes('amount')));
