@@ -404,7 +404,7 @@ td{padding:12px 14px;color:var(--t1);vertical-align:middle;white-space:nowrap;}
       </div>
       <div style="display:flex;gap:10px;margin-left:auto;">
         <button onclick="closeUpload()" style="padding:8px 20px;border-radius:7px;border:1.5px solid var(--border);background:var(--surface);font-size:13px;font-weight:600;cursor:pointer;color:var(--t2);">Close</button>
-        <button id="usave-btn" onclick="confirmUploadSave()" style="display:none;padding:8px 22px;border-radius:7px;background:var(--green);color:#fff;border:none;font-size:13px;font-weight:700;cursor:pointer;">&#10003; Save Valid Updates</button>
+        <button id="usave-btn" onclick="confirmUploadSave()" style="display:none;padding:8px 22px;border-radius:7px;background:var(--green);color:#fff;border:none;font-size:13px;font-weight:700;cursor:pointer;">&#10003; Save Updates</button>
       </div>
     </div>
   </div>
@@ -1090,9 +1090,7 @@ function rdRows(){
     const srnBadge=o.srnStatus?`<span class="b ${o.srnCompleted?'bg':'bs'}">${o.srnStatus}</span>`:'—';
     const svcBadge=o.serviceFlag?`<span class="b bt">${o.serviceFlag}</span>`:'—';
     const ageBadge=o.isHighAgeing?`<span class="b br">${o.ageingDays}d HA</span>`:o.isMidAgeing?`<span class="b ba">${o.ageingDays}d</span>`:`<span class="b bs">${o.ageingDays||0}d</span>`;
-    const _needsEmailSubj=(curAct==='Connected to Warehouse \u2013 SRN Pending'||curAct==='Connected to Retail \u2013 SRN Pending');
-    const _existSubj=ch.emailSubjectLine!==undefined?ch.emailSubjectLine:(o.emailSubjectLine||'');
-    const emailSubjHtml=_needsEmailSubj?`<div class="ec"><span class="ref-lbl" style="color:var(--red);font-weight:700;">* Email Subject</span><input class="cn-inp" style="min-width:180px;" type="text" placeholder="Required\u2026" value="${_existSubj.replace(/"/g,'&quot;')}" onchange="onEmailSubj('${o.orderId}',this.value)"/></div>`:'';
+    const emailSubjHtml='';
 
 
     tb.insertAdjacentHTML('beforeend',`<tr class="${cl}">
@@ -1344,7 +1342,9 @@ async function handleUpload(inp){
       return`<div class="ures fail" style="${isMismatch?'border-color:#FFC107;background:#FFFDE7;':''}">`+`<span class="ui-icon" style="${isMismatch?'color:#856404;':''}">✗</span>`+`<div class="ui-id">${r.orderId}</div>`+`<div class="ui-msg" style="${isMismatch?'color:#856404;':''}">${r.error||'Unknown error'}</div></div>`;
     }).join('');
     setHTML('ubody',mismatchBanner+rowHtml);
-    $('usave-btn').style.display=correctMatch>0?'':'none';
+    // Keep a single Save Updates action available for the complete uploaded-order preview.
+    // The server-validated change set is applied on save; the preview itself retains every uploaded row.
+    $('usave-btn').style.display=(!isNoChangesScenario && totalUploaded>0)?'':'none';
     $('upload-modal').classList.remove('hide');
   }catch(e){hideOv();toast('Validation failed — check your connection and retry upload.','red');}
   inp.value='';
@@ -1418,8 +1418,8 @@ async function saveUploadChanges(){
 function confirmUploadSave(){
   if(!_uplBatch||!_uplBatch.results)return;
   const validCount=_uplBatch.results.filter(r=>r.valid&&!r.noChange).length;
-  if(!validCount){toast('No changes to save','amber');return;}
-  const yes=window.confirm('Do you want to save '+validCount+' action'+(validCount===1?'':'s')+'?');
+  if(!validCount){toast('There are no saveable changes in this uploaded order list','amber');return;}
+  const yes=window.confirm('Save the available changes from this uploaded order list? Orders without a saveable change will remain unchanged.');
   if(!yes)return;
   saveUploadChanges();
 }
