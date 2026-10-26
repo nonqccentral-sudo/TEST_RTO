@@ -1504,6 +1504,9 @@ function closeDlConf(){$('dl-modal').classList.add('hide');}
 async function dlGo(mode){const city=$('dl-modal').dataset.city||null;const t=$('dl-modal').dataset.t||null;closeDlConf();await _doDownload(t==='loss'?'loss':mode,city);}
 
 async function _doDownload(type,city){
+  // Guard against double-clicks/repeated event firing that generated duplicate downloads.
+  if(window.__rtoDownloadInProgress)return;
+  window.__rtoDownloadInProgress=true;
   showOv('Preparing download…','Building dataset');
   try{
     let ep=API+'?action=downloadCity&email='+encodeURIComponent(USER?.email||'')+'&type='+(type||'complete');
@@ -1536,6 +1539,7 @@ async function _doDownload(type,city){
     XLSX.writeFile(wb,(city||'PanIndia')+'_RTO'+typeLabel+'_'+new Date().toISOString().slice(0,10)+'.xlsx',{cellStyles:true});
     toast('Downloaded '+(rows.length-1)+' orders'+(mismatchCount?' · '+mismatchCount+' mismatch rows highlighted':''),'green');
   }catch(e){hideOv();toast('Download error: '+e.message,'red');}
+  finally{window.__rtoDownloadInProgress=false;hideOv();}
 }
 
 async function openLossModal(){
