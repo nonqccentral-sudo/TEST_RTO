@@ -749,7 +749,7 @@ function loadSummary(){
   /* PERF: for city users, summary + orders load in parallel (cuts perceived load ~40%) */
   showOv('Loading RTO data…','Please wait');
   const sumEp=API+'?action=getSummary&email='+encodeURIComponent(USER?.email||'')+_cq();
-  const ordEp=API+'?action=getOrders&email='+encodeURIComponent(USER?.email||'')+'&page=1&ps='+PAGE_SZ+_cq()+'&'+_fp();
+  const ordEp=API+'?action=getOrders&email='+encodeURIComponent(USER?.email||'')+'&page=1&ps='+PAGE_SZ+_cq()+'&'+_fp()+(SCITY?'&pivot=1':'');
   const isCityUser=!USER?.isAdmin&&!isRA()&&USER?.city;
   if(isCityUser){
     // Parallel: both requests fly at once
@@ -920,6 +920,7 @@ function loadOrders(){
   $('tload').style.display='flex';$('tbody').innerHTML='';$('temp').style.display='none';
   let ep=API+'?action=getOrders&email='+encodeURIComponent(USER?.email||'')+'&page='+PG+'&ps='+PAGE_SZ;
   ep+=_cq();ep+='&'+_fp();
+  if(SCITY)ep+='&pivot=1'; // bundle pivot so _renderCityPivot needs no extra request
   fetch(ep).then(r=>r.json()).then(d=>{
     ORDERS_LOADING=false;hideFSpin();hideOv();$('tload').style.display='none';
     if(!d||!d.success){toast(d?.error||'Failed to load orders','red');return;}
@@ -930,6 +931,7 @@ function _renderOrders(d){
   ORDERS_LOADING=false;ORDERS=d.orders||[];TOTAL_PGS=d.totalPages||1;
   $('tcnt',(d.total||ORDERS.length)+' orders');$('pgi','Page '+PG+' of '+TOTAL_PGS);
   $('btn-pv').disabled=PG<=1;$('btn-nx').disabled=PG>=TOTAL_PGS;
+  if(d.pivot)window._cachedPivot=d.pivot; // stash pivot bundled with orders; consumed by _renderCityPivot
   rdRows();if(SCITY)afterOrdersCity();
 }
 
@@ -1011,8 +1013,10 @@ async function _renderCityPivot(){
   pvt.style.display='block';
   pvt.innerHTML=`<div class="pivot-section"><div class="pivot-hdr"><h3>Action Pending Split — ${SCITY}</h3><span>Loading…</span></div></div>`;
   try{
-    const ep=API+'?action=getOrders&email='+encodeURIComponent(USER?.email||'')+'&fAP=1&ps=1&page=1&pivot=1&fCity='+encodeURIComponent(SCITY);
-    const d=await fetch(ep).then(r=>r.json());
+    // Use pivot bundled with the main orders response when available (avoids a separate server call)
+    let d;
+    if(window._cachedPivot){d={success:true,pivot:window._cachedPivot};window._cachedPivot=null;}
+    else{const ep=API+'?action=getOrders&email='+encodeURIComponent(USER?.email||'')+'&fAP=1&ps=1&page=1&pivot=1&fCity='+encodeURIComponent(SCITY);d=await fetch(ep).then(r=>r.json());}
     if(!d||!d.success||!d.pivot){pvt.style.display='none';return;}
     const{fc,retail,tpl,total}=d.pivot;
     if(!total){pvt.style.display='none';return;}
@@ -1504,9 +1508,6 @@ function closeDlConf(){$('dl-modal').classList.add('hide');}
 async function dlGo(mode){const city=$('dl-modal').dataset.city||null;const t=$('dl-modal').dataset.t||null;closeDlConf();await _doDownload(t==='loss'?'loss':mode,city);}
 
 async function _doDownload(type,city){
-  // Guard against double-clicks/repeated event firing that generated duplicate downloads.
-  if(window.__rtoDownloadInProgress)return;
-  window.__rtoDownloadInProgress=true;
   showOv('Preparing download…','Building dataset');
   try{
     let ep=API+'?action=downloadCity&email='+encodeURIComponent(USER?.email||'')+'&type='+(type||'complete');
@@ -1539,7 +1540,6 @@ async function _doDownload(type,city){
     XLSX.writeFile(wb,(city||'PanIndia')+'_RTO'+typeLabel+'_'+new Date().toISOString().slice(0,10)+'.xlsx',{cellStyles:true});
     toast('Downloaded '+(rows.length-1)+' orders'+(mismatchCount?' · '+mismatchCount+' mismatch rows highlighted':''),'green');
   }catch(e){hideOv();toast('Download error: '+e.message,'red');}
-  finally{window.__rtoDownloadInProgress=false;hideOv();}
 }
 
 async function openLossModal(){
