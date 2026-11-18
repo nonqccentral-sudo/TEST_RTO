@@ -404,6 +404,7 @@ td{padding:12px 14px;color:var(--t1);vertical-align:middle;white-space:nowrap;}
       </div>
       <div style="display:flex;gap:10px;margin-left:auto;">
         <button onclick="closeUpload()" style="padding:8px 20px;border-radius:7px;border:1.5px solid var(--border);background:var(--surface);font-size:13px;font-weight:600;cursor:pointer;color:var(--t2);">Close</button>
+        <div id="usave-none-msg" style="display:none;font-size:12px;color:var(--t3);font-weight:600;padding:4px 0;"></div>
         <button id="usave-btn" onclick="confirmUploadSave()" style="display:none;padding:8px 22px;border-radius:7px;background:var(--green);color:#fff;border:none;font-size:13px;font-weight:700;cursor:pointer;">&#10003; Save Updates</button>
       </div>
     </div>
@@ -1311,7 +1312,7 @@ function _uplRefreshSummary(results,pendingCount){
     const ubody=document.getElementById('ubody');
     if(ubody)ubody.insertAdjacentElement('beforebegin',b);
   }
-  return{hasMismatch,isNoChangesScenario,correctMatch,noChange,totalInvalid};
+  return{hasMismatch,isNoChangesScenario,correctMatch,noChange,totalInvalid,tot,pendingCount};
 }
 
 async function handleUpload(inp){
@@ -1414,8 +1415,18 @@ async function handleUpload(inp){
         if(el){const tmp=document.createElement('div');tmp.innerHTML=_uplRowHtml(sr);const newEl=tmp.firstChild;if(newEl)el.replaceWith(newEl);}
       });
     }
-    const {isNoChangesScenario,correctMatch}=_uplRefreshSummary(_uplBatch.results,0);
-    $('usave-btn').style.display=(!isNoChangesScenario&&correctMatch>0)?'':'none';
+    const {isNoChangesScenario,correctMatch,tot,totalInvalid}=_uplRefreshSummary(_uplBatch.results,0);
+    const canSave=!isNoChangesScenario&&correctMatch>0;
+    $('usave-btn').style.display=canSave?'':'none';
+    const noneMsg=$('usave-none-msg');
+    if(noneMsg){
+      if(!canSave){
+        const checked=tot-((_uplBatch.results||[]).filter(r=>r._pending).length);
+        const inv=totalInvalid;
+        noneMsg.textContent=checked+' orders checked'+(inv?' · '+inv+' invalid':'')+' · nothing to save';
+        noneMsg.style.display='';
+      }else{noneMsg.style.display='none';}
+    }
   }catch(e){toast('Validation error — check connection and retry.','red');}
 }
 
@@ -1524,10 +1535,23 @@ function confirmUploadSave(){
 
 function downloadMismatchedOrders(){
   if(!_uplBatch||!_uplBatch.results)return;
-  const mismatches=_uplBatch.results.filter(r=>!r.valid&&(r.errorType==='mismatch_action'||r.errorType==='mismatch_update'));
+  const BAD_TYPES=new Set(['mismatch_action','mismatch_update','invalid_action','server_error']);
+  const mismatches=_uplBatch.results.filter(r=>!r.valid&&BAD_TYPES.has(r.errorType));
   if(!mismatches.length){toast('No mismatched orders found','amber');return;}
-  // Use full corrective download (same format as main RTO sheet) instead of local mini-build
-  _doDownload('corrective',SCITY||null);
+  // Build XLSX from ONLY the mismatched uploaded rows — not the full sheet
+  const origMap=_uplBatch._origMap||new Map();
+  const hdr=['Order ID','Uploaded Action','Uploaded Update','Error Type','Error Detail'];
+  const rows=mismatches.map(r=>{
+    const orig=origMap.get(r.orderId)||{};
+    return[r.orderId,orig.action||'',orig.update||'',r.errorType||'',r.error||''];
+  });
+  const wb=XLSX.utils.book_new();
+  const ws=XLSX.utils.aoa_to_sheet([hdr,...rows]);
+  // Column widths
+  ws['!cols']=[{wch:22},{wch:30},{wch:25},{wch:20},{wch:60}];
+  XLSX.utils.book_append_sheet(wb,ws,'Mismatched Orders');
+  XLSX.writeFile(wb,'mismatched_orders_'+new Date().toISOString().slice(0,10)+'.xlsx');
+  toast(mismatches.length+' mismatched rows downloaded','green');
 }
 
 async function openHist(id){
