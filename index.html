@@ -490,6 +490,7 @@ td{padding:12px 14px;color:var(--t1);vertical-align:middle;white-space:nowrap;}
     <span class="dl-lbl">&#11015; Downloads</span>
     <button class="dlb dlb-pi" id="dlb-pan" onclick="triggerDl('panIndia')">&#11015; PAN India</button>
     <button class="dlb dlb-pi" id="region-upload-btn" onclick="triggerUpload()" style="background:var(--purplel);border-color:#D8B4FE;color:var(--purple);display:none;">&#11014; Upload Updates</button>
+    <button class="dlb" id="move-resolved-btn" onclick="moveResolvedOrders('both')" style="background:#F0FDF4;border-color:#86EFAC;color:#166534;display:none;" title="Archive SRN-Completed &amp; Closure-Remarks orders to ORDERS_BACKUP_RTO">&#8594; Archive Orders</button>
     <button class="dlb dlb-flt" id="dlbflt" onclick="triggerDl('filtered')" disabled>&#9660; Filtered</button>
     <button class="dlb dlb-loss" onclick="triggerDl('loss')">&#11015; Loss Report</button>
     <div style="margin-left:auto;display:flex;gap:8px;align-items:center;">
@@ -612,7 +613,7 @@ td{padding:12px 14px;color:var(--t1);vertical-align:middle;white-space:nowrap;}
 
 <script>
 
-const API='https://script.google.com/macros/s/AKfycbxsiZ1eVJ2D_aaIi1VZwRbDPraIUdSYpwU1-dyGavkJ7hs-4f3qAhXH2xUi3zLVvDq1/exec';
+const API='https://script.google.com/macros/s/AKfycbzE2AR4lwSguuTdao2dV19AovJbaZbZwh4_T6AO-npbD_hbzkAMlJRsLnLeWw0ju-Vycg/exec';
 const LC_KEY='rto_sum_v2343';
 const LC_TTL=20*60*1000;  // 20 min (was 15)
 const PAGE_SZ=100;
@@ -675,6 +676,8 @@ function initDash(){
   const canUploadRole = !USER?.isViewOnly && !USER?.isGlobalViewer && (ia || ra || !!USER?.city || (USER?.cities||[]).length > 0);
   const topUpload = $('region-upload-btn');
   if(topUpload) topUpload.style.display = canUploadRole && (ia || ra) ? '' : 'none';
+  const moveResolvedBtn = $('move-resolved-btn');
+  if(moveResolvedBtn) moveResolvedBtn.style.display = ia ? '' : 'none'; // Admin-only
   const panBtn = $('dlb-pan');
   if(panBtn) panBtn.innerHTML = ra ? '&#11015; Region Dataset' : '&#11015; PAN India';
   if(USER?.isViewOnly||USER?.isGlobalViewer){$('upload-btn').style.display='none';$('sbtn').style.display='none';if(topUpload)topUpload.style.display='none';}else{$('sbtn').style.display='';}
@@ -1361,44 +1364,63 @@ async function handleUpload(inp){
   inp.value='';
 }
 
+/* ── Browser notification helper ─────────────────────────────────
+ * Requests permission on first use, then fires a desktop notification.
+ * Falls back gracefully (tab-title badge) when API is unavailable.
+ */
+async function _notifyUploadDone(ok,fail){
+  const title=ok+' orders saved'+(fail?' ('+fail+' failed)':'');
+  document.title='✅ '+title+' — RTO Dashboard';
+  setTimeout(()=>{document.title='RTO Operations Dashboard';},15000);
+  try{
+    if(!('Notification' in window))return;
+    if(Notification.permission==='default')await Notification.requestPermission();
+    if(Notification.permission==='granted'){
+      new Notification('RTO Upload Complete',{body:title,icon:'https://fonts.gstatic.com/s/i/materialiconsoutlined/check_circle/v12/24px.svg'});
+    }
+  }catch(e){/* silent — tab-title badge is enough */}
+}
+
 async function saveUploadChanges(){
   if(!_uplBatch)return;
   const valid=_uplBatch.results.filter(r=>r.valid&&!r.noChange);
   if(!valid.length){toast('No changes to save','amber');return;}
   const changeMap={};valid.forEach(r=>{if(r.resolved)changeMap[r.orderId]=r.resolved;});
-  const CHUNK=25; // gzip cache = fast reads; 25 rows/call is safe (was 4 — caused 93 round-trips + bustCache per call = 2h)
   const allChanges=valid.map(r=>({orderId:r.orderId,...(r.resolved||{})}));
   const allResults=[];
-  showOv('Saving '+valid.length+' updates…','Sending in batches of '+CHUNK);
+
+  // ── Single-request save (tab-independent) ────────────────────────
+  // All rows sent in ONE fetch call → browser continues the request
+  // even if the user switches tabs. No frontend loop = no sequential
+  // dependency that breaks on tab-switch. Backend handles the full
+  // iteration and does a single cache bust at the end.
+  showOv('Saving '+valid.length+' updates…','You can switch tabs — we\'ll notify you when done');
+  // Request notification permission proactively so the prompt appears
+  // before the user potentially switches away.
+  if('Notification' in window && Notification.permission==='default'){
+    Notification.requestPermission().catch(()=>{});
+  }
   try{
-    for(let i=0;i<allChanges.length;i+=CHUNK){
-      const chunk=allChanges.slice(i,i+CHUNK);
-      $('ov-msg','Saving '+(i+1)+'–'+Math.min(i+CHUNK,allChanges.length)+' of '+allChanges.length+'…');
-      // skipCacheBust=true: defer cache invalidation until all chunks done (massive speed-up)
-      const _doChunk=async()=>fetch(API,{method:'POST',headers:{'Content-Type':'text/plain;charset=UTF-8'},
-        body:JSON.stringify({action:'batchSave',email:USER?.email||'',source:'upload',changes:chunk,skipCacheBust:true})}).then(r=>r.json());
-      let res=null;
-      for(let att=0;att<3;att++){
-        try{res=await _doChunk();if(res&&res.success)break;}
-        catch(eR){if(att<2){$('ov-msg','Network hiccup, retrying…');await new Promise(r=>setTimeout(r,(att+1)*1500));}}
-      }
-      if(res&&res.success){allResults.push(...(res.results||[]));}
-      else{
-        // Don't abort — mark this chunk's orders as failed and continue with remaining chunks
-        chunk.forEach(ch=>allResults.push({orderId:ch.orderId,success:false,error:(res&&res.error)||'Batch failed — retry'}));
-        console.warn('Chunk '+(Math.floor(i/CHUNK)+1)+' failed:',(res&&res.error)||'network error');
+    let res=null;
+    for(let att=0;att<3;att++){
+      try{
+        res=await fetch(API,{method:'POST',headers:{'Content-Type':'text/plain;charset=UTF-8'},
+          body:JSON.stringify({action:'bulkSave',email:USER?.email||'',source:'upload',changes:allChanges})}).then(r=>r.json());
+        if(res&&res.success)break;
+      }catch(eR){
+        if(att<2){$('ov-msg','Network hiccup, retrying (attempt '+(att+2)+'/3)…');await new Promise(r=>setTimeout(r,(att+1)*2000));}
       }
     }
-    // All chunks done — now do ONE bust+rebuild instead of one per chunk
-    if(allResults.some(r=>r.success)){
-      $('ov-msg','Refreshing dashboard data…');
-      try{await fetch(API,{method:'POST',headers:{'Content-Type':'text/plain;charset=UTF-8'},
-        body:JSON.stringify({action:'bustCache',email:USER?.email||''})}).then(r=>r.json());}
-      catch(e){console.warn('Cache bust failed (non-critical):',e);}
+    if(res&&res.success){allResults.push(...(res.results||[]));}
+    else{
+      // Full failure — mark every row
+      allChanges.forEach(ch=>allResults.push({orderId:ch.orderId,success:false,error:(res&&res.error)||'Save failed — retry'}));
     }
     hideOv();
     const ok=allResults.filter(r=>r.success).length;
     const fail=allResults.filter(r=>!r.success).length;
+    // Notify even if user has switched tabs — tab title badge + desktop notification
+    _notifyUploadDone(ok,fail);
     toast(ok+' orders updated'+(fail?' · '+fail+' failed':''),'green');
     Object.keys(localStorage).filter(k=>k.startsWith('rto_f_')||k===LC_KEY).forEach(k=>localStorage.removeItem(k));
     _patchOrdersAndRefreshUI(allResults,changeMap);
@@ -1642,6 +1664,41 @@ function _mkChart(id,type,labels,data,colors){
 async function adminResetEdit(orderId){
   if(!USER?.isAdmin){toast('Admin only','red');return;}if(!confirm('Reset edit count for '+orderId+'?'))return;
   try{const r=await fetch(API+'?action=resetEditCount&email='+encodeURIComponent(USER.email||'')+'&orderId='+encodeURIComponent(orderId)).then(r=>r.json());if(r.success){toast('Edit count reset for '+orderId);localStorage.removeItem(LC_KEY);loadOrders();}else toast(r.error||'Reset failed','red');}catch(e){toast('Network error','red');}
+}
+
+/* ── Move Resolved Orders (Admin only) ───────────────────────────
+ * Moves all SRN-completed rows from the main RTO Data sheet into
+ * a separate "Resolved Orders" Google Sheet (created on first run).
+ * Condition: srnCompleted = true, regardless of action/update state.
+ */
+async function moveResolvedOrders(mode){
+  if(!USER?.isAdmin){toast('Admin only','red');return;}
+  const m=mode||'both';
+  const modeLabel=m==='srn'?'SRN-completed':m==='cr'?'Closure-Remarks':'SRN-completed + Closure-Remarks';
+  if(!confirm('This will archive all '+modeLabel+' orders to ORDERS_BACKUP_RTO and remove them from this dashboard.\n\nContinue?'))return;
+  showOv('Archiving orders…','Moving '+modeLabel+' rows — please wait');
+  try{
+    const r=await fetch(API+'?action=moveResolvedOrders&email='+encodeURIComponent(USER?.email||'')+'&mode='+m).then(r=>r.json());
+    hideOv();
+    if(!r.success){toast(r.error||'Archive failed','red');return;}
+    const total=(r.movedSrn||0)+(r.movedCr||0);
+    if(total===0){toast('No matching orders found','amber');return;}
+    // Build summary line
+    const parts=[];
+    if(r.movedSrn) parts.push(r.movedSrn+' SRN Completed');
+    if(r.movedCr)  parts.push(r.movedCr+' Closure Remarks');
+    const linkHtml=r.sheetUrl?` <a href="${r.sheetUrl}" target="_blank" style="color:var(--blue);text-decoration:underline;">Open Sheet ↗</a>`:'';
+    // Refresh KPIs since rows were removed
+    localStorage.removeItem(LC_KEY);
+    await loadSummary();
+    loadOrders();
+    // Persistent banner
+    const banner=document.createElement('div');
+    banner.style.cssText='position:fixed;top:72px;left:50%;transform:translateX(-50%);z-index:9999;padding:14px 24px;border-radius:10px;background:#F0FDF4;border:2px solid #86EFAC;color:#166534;font-weight:700;font-size:14px;box-shadow:0 4px 20px rgba(0,0,0,.12);display:flex;align-items:center;gap:12px;';
+    banner.innerHTML='&#10003; '+parts.join(' + ')+' orders archived.'+linkHtml+'<button onclick="this.parentNode.remove()" style="margin-left:12px;background:none;border:none;cursor:pointer;font-size:16px;color:#166534;">&#10005;</button>';
+    document.body.appendChild(banner);
+    setTimeout(()=>banner.remove(),30000);
+  }catch(e){hideOv();toast('Error: '+e.message,'red');}
 }
 
 </script>
