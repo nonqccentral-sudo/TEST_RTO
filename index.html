@@ -613,7 +613,7 @@ td{padding:12px 14px;color:var(--t1);vertical-align:middle;white-space:nowrap;}
 
 <script>
 
-const API='https://script.google.com/macros/s/AKfycbxsiZ1eVJ2D_aaIi1VZwRbDPraIUdSYpwU1-dyGavkJ7hs-4f3qAhXH2xUi3zLVvDq1/exec';
+const API='https://script.google.com/macros/s/AKfycbzE2AR4lwSguuTdao2dV19AovJbaZbZwh4_T6AO-npbD_hbzkAMlJRsLnLeWw0ju-Vycg/exec';
 const LC_KEY='rto_sum_v2343';
 const LC_TTL=20*60*1000;  // 20 min (was 15)
 const PAGE_SZ=100;
@@ -1257,9 +1257,66 @@ async function saveAll(){
 function triggerUpload(){$('upload-file').click();}
 function closeUpload(){$('upload-modal').classList.add('hide');_uplBatch=null;const badge=$('usave-badge');if(badge)badge.style.display='none';}
 
+/* ── Upload validation helpers ──────────────────────────────────── */
+function _uplRowHtml(r){
+  if(r._pending)return`<div class="ures" style="opacity:.55;border-color:var(--b2);" data-rid="${r.orderId}"><span class="ui-icon" style="font-size:13px;animation:spin 1s linear infinite;display:inline-block;">⌛</span><div class="ui-id">${r.orderId}</div><div class="ui-msg" style="color:var(--t3);">Validating…<span style="font-size:10px;color:var(--t3);margin-left:6px;">${r._localNote||''}</span></div></div>`;
+  if(r.valid&&!r.noChange&&r.needsUpdate)return`<div class="ures ok" style="border-color:#FFC107;background:#FFFDE7;" data-rid="${r.orderId}"><span class="ui-icon" style="color:#856404;">⚠</span><div class="ui-id">${r.orderId}</div><div class="ui-msg" style="color:#856404;">${r.changes?r.changes.map(c=>`<b>${c.field}</b>: ${c.old} → ${c.new}`).join(' · '):'Ready'} · <b>Still pending — add Update: ${(r.needsUpdateOptions||[]).join(' | ')}</b></div></div>`;
+  if(r.valid&&!r.noChange)return`<div class="ures ok" data-rid="${r.orderId}"><span class="ui-icon">✓</span><div class="ui-id">${r.orderId}</div><div class="ui-msg">${r.changes?r.changes.map(c=>`<b>${c.field}</b>: ${c.old} → ${c.new}`).join(' · '):'Ready'}</div></div>`;
+  if(r.valid&&r.noChange)return`<div class="ures ok" style="opacity:.6" data-rid="${r.orderId}"><span class="ui-icon">→</span><div class="ui-id">${r.orderId}</div><div class="ui-msg" style="color:var(--t3)">No change (values already match)</div></div>`;
+  const isMismatch=r.errorType==='mismatch_action'||r.errorType==='mismatch_update';
+  return`<div class="ures fail" style="${isMismatch?'border-color:#FFC107;background:#FFFDE7;':''}" data-rid="${r.orderId}"><span class="ui-icon" style="${isMismatch?'color:#856404;':''}">✗</span><div class="ui-id">${r.orderId}</div><div class="ui-msg" style="${isMismatch?'color:#856404;':''}">${r.error||'Unknown error'}</div></div>`;
+}
+
+function _uplRefreshSummary(results,pendingCount){
+  const tot=results.length;
+  const done=results.filter(r=>!r._pending);
+  const correctMatch=done.filter(r=>r.valid&&!r.noChange).length;
+  const noChange=done.filter(r=>r.valid&&r.noChange).length;
+  const mismatchAction=done.filter(r=>!r.valid&&r.errorType==='mismatch_action').length;
+  const mismatchUpdate=done.filter(r=>!r.valid&&r.errorType==='mismatch_update').length;
+  const needsUpdateWarn=done.filter(r=>r.valid&&r.needsUpdate).length;
+  const actionNotMade=done.filter(r=>!r.valid&&r.errorType==='action_not_made').length;
+  const editLimitHit=done.filter(r=>!r.valid&&r.errorType==='edit_limit').length;
+  const orderNotFound=done.filter(r=>!r.valid&&r.errorType==='not_found').length;
+  const otherFail=done.filter(r=>!r.valid&&!r.errorType&&r.errorType!=='invalid_action').length;
+  const invalidAction=done.filter(r=>!r.valid&&r.errorType==='invalid_action').length;
+  const totalMismatch=mismatchAction+mismatchUpdate;
+  const totalInvalid=done.filter(r=>!r.valid).length;
+  const isNoChangesScenario=!pendingCount&&tot>0&&noChange===tot&&correctMatch===0&&totalInvalid===0;
+  $('upload-title',isNoChangesScenario?'No Changes Found':('Upload Validation — '+tot+' rows'+(pendingCount?' (checking '+pendingCount+'…)':'')));
+  if(isNoChangesScenario){
+    setHTML('usum',`<div style="display:flex;align-items:center;gap:14px;padding:6px 0;"><span style="font-size:26px;">→</span><div><div style="font-size:15px;font-weight:800;color:var(--t2);">No changes found in the file.</div><div style="font-size:12px;color:var(--t3);margin-top:2px;">${tot} rows checked — all values already match the dashboard.</div></div></div>`);
+  }else{
+    setHTML('usum',`<div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center;padding:4px 0;">
+      <div class="ustat tot"><b>${tot}</b>&nbsp;Uploaded</div>
+      ${pendingCount?`<div class="ustat" style="color:var(--t3);border-color:var(--b2);">⌛&nbsp;<b>${pendingCount}</b>&nbsp;Checking…</div>`:''}
+      ${correctMatch?`<div class="ustat ok">✓&nbsp;<b>${correctMatch}</b>&nbsp;Ready to Save</div>`:''}
+      ${mismatchAction?`<div class="ustat fail">✗&nbsp;<b>${mismatchAction}</b>&nbsp;Wrong Action</div>`:''}
+      ${mismatchUpdate?`<div class="ustat fail">✗&nbsp;<b>${mismatchUpdate}</b>&nbsp;Wrong Update</div>`:''}
+      ${invalidAction?`<div class="ustat fail">✗&nbsp;<b>${invalidAction}</b>&nbsp;Invalid Remark</div>`:''}
+      ${needsUpdateWarn?`<div class="ustat" style="color:#856404;background:#FFFDE7;border-color:#FFC107;">⚠&nbsp;<b>${needsUpdateWarn}</b>&nbsp;Update Still Needed</div>`:''}
+      ${actionNotMade?`<div class="ustat" style="color:var(--amber);">⚠&nbsp;<b>${actionNotMade}</b>&nbsp;Action Not Made</div>`:''}
+      ${editLimitHit?`<div class="ustat fail">🔒&nbsp;<b>${editLimitHit}</b>&nbsp;Edit Limit Reached</div>`:''}
+      ${noChange?`<div class="ustat tot">→&nbsp;<b>${noChange}</b>&nbsp;No Change</div>`:''}
+      ${orderNotFound?`<div class="ustat fail">✗&nbsp;<b>${orderNotFound}</b>&nbsp;Order Not Found</div>`:''}
+      ${otherFail?`<div class="ustat fail">✗&nbsp;<b>${otherFail}</b>&nbsp;Other Error</div>`:''}
+    </div>`);
+  }
+  const hasMismatch=totalMismatch>0;
+  const mismatchBanner=document.getElementById('mismatch-banner');
+  if(hasMismatch&&!mismatchBanner){
+    const b=document.createElement('div');b.id='mismatch-banner';
+    b.style.cssText='margin-bottom:14px;padding:16px 20px;border-radius:10px;background:#FFF3CD;border:2px solid #FFC107;display:flex;align-items:flex-start;gap:14px;';
+    b.innerHTML='<span style="font-size:24px;flex-shrink:0;">⚠</span><div style="flex:1;"><div style="font-size:14px;font-weight:800;color:#856404;margin-bottom:6px;">Mismatched orders have been highlighted.</div><div style="font-size:12px;color:#856404;line-height:1.6;"><b>Valid updates shown in green will be applied. Mismatched rows shown in red will not be updated.</b></div><button onclick="downloadMismatchedOrders()" style="margin-top:10px;padding:6px 16px;border-radius:6px;background:#856404;color:#fff;border:none;font-size:12px;font-weight:700;cursor:pointer;">↓ Download Mismatched Orders</button></div>';
+    const ubody=document.getElementById('ubody');
+    if(ubody)ubody.insertAdjacentElement('beforebegin',b);
+  }
+  return{hasMismatch,isNoChangesScenario,correctMatch,noChange,totalInvalid};
+}
+
 async function handleUpload(inp){
   const file=inp.files[0];if(!file)return;
-  showOv('Parsing upload…','Reading Excel');
+  showOv('Parsing file…','Reading Excel');
   const ab=await file.arrayBuffer();
   const wb=XLSX.read(ab,{type:'array'});
   const sh=wb.Sheets[wb.SheetNames[0]];
@@ -1288,80 +1345,78 @@ async function handleUpload(inp){
     codAmount:codi>=0?(parseFloat(r[codi])||0):0,
   }));
   if(!data.length){hideOv();toast('No data rows found','amber');inp.value='';return;}
-  hideOv();showOv('Validating on server…','Checking '+data.length+' rows — this may take ~15s if data is loading');
-  try{
-    // Chunked validation: 50 rows per call so GAS never times out
-    // First chunk may trigger cache build; rest are fast
-    const VCHUNK=50;
-    const allVResults=[];
-    for(let vi=0;vi<data.length;vi+=VCHUNK){
-      const vChunk=data.slice(vi,vi+VCHUNK);
-      $('ov-msg','Validating '+(vi+1)+'–'+Math.min(vi+VCHUNK,data.length)+' of '+data.length+'…');
-      let vRes=null;
-      for(let attempt=0;attempt<3;attempt++){
-        try{
-          vRes=await fetch(API,{method:'POST',headers:{'Content-Type':'text/plain;charset=UTF-8'},
-            body:JSON.stringify({action:'validateUpload',email:USER?.email||'',data:vChunk})}).then(r=>r.json());
-          if(vRes&&vRes.success)break;
-        }catch(ve){
-          if(attempt<2){$('ov-msg','Server busy, retrying in '+(attempt===0?10:15)+'s…');await new Promise(r=>setTimeout(r,(attempt===0?10:15)*1000));}
-        }
-      }
-      if(!vRes||!vRes.success){hideOv();toast((vRes&&vRes.error)||'Validation failed — retry upload','red');inp.value='';return;}
-      allVResults.push(...(vRes.results||[]));
+
+  // ── Phase 1: Instant local pre-check ──────────────────────────────
+  // Build preliminary results using ALL_ACTIONS (loaded with dashboard data).
+  // Shows the modal immediately so user can see wrong closure remarks right away.
+  const knownActionsLower=new Set((ALL_ACTIONS||[]).map(a=>a.toLowerCase()));
+  const initResults=data.map(d=>{
+    if(!d.action)return{orderId:d.orderId,valid:false,error:'Action/Remark is empty',errorType:'invalid_action'};
+    if(knownActionsLower.size&&!knownActionsLower.has(d.action.toLowerCase())){
+      return{orderId:d.orderId,valid:false,
+        error:`Invalid closure remark: "${d.action}"`,
+        errorType:'invalid_action'};
     }
-    const res={success:true,results:allVResults};
-    hideOv();
-    _uplBatch=res;
-    // Store original uploaded rows by orderId so mismatch download can include all uploaded fields
-    _uplBatch._origMap=new Map(data.map(d=>[d.orderId,d]));
-    const totalUploaded=data.length;
-    const correctMatch=res.results.filter(r=>r.valid&&!r.noChange).length;
-    const noChange=res.results.filter(r=>r.valid&&r.noChange).length;
-    const mismatchAction=res.results.filter(r=>!r.valid&&r.errorType==='mismatch_action').length;
-    const mismatchUpdate=res.results.filter(r=>!r.valid&&r.errorType==='mismatch_update').length;
-    const needsUpdateWarn=res.results.filter(r=>r.valid&&r.needsUpdate).length;
-    const actionNotMade=res.results.filter(r=>!r.valid&&r.errorType==='action_not_made').length;
-    const editLimitHit=res.results.filter(r=>!r.valid&&r.errorType==='edit_limit').length;
-    const orderNotFound=res.results.filter(r=>!r.valid&&r.errorType==='not_found').length;
-    const missingSubject=0;
-    const otherFail=res.results.filter(r=>!r.valid&&!r.errorType).length;
-    const totalMismatch=mismatchAction+mismatchUpdate;const totalInvalid=res.results.filter(r=>!r.valid).length;
-    const isNoChangesScenario=(totalUploaded>0)&&(noChange===totalUploaded)&&correctMatch===0&&totalInvalid===0;
-    const hasMismatch=totalMismatch>0;
-    $('upload-title',isNoChangesScenario?'No Changes Found':'Upload Validation — '+totalUploaded+' rows');
-    if(isNoChangesScenario){
-      setHTML('usum',`<div style="display:flex;align-items:center;gap:14px;padding:6px 0;"><span style="font-size:26px;">→</span><div><div style="font-size:15px;font-weight:800;color:var(--t2);">No changes found in the file.</div><div style="font-size:12px;color:var(--t3);margin-top:2px;">${totalUploaded} rows checked — all values already match the dashboard.</div></div></div>`);
-    }else{
-      setHTML('usum',`<div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center;padding:4px 0;">
-        <div class="ustat tot"><b>${totalUploaded}</b>&nbsp;Uploaded</div>
-        ${correctMatch?`<div class="ustat ok">✓&nbsp;<b>${correctMatch}</b>&nbsp;Ready to Save</div>`:''}
-        ${mismatchAction?`<div class="ustat fail">✗&nbsp;<b>${mismatchAction}</b>&nbsp;Wrong Action</div>`:''}
-        ${mismatchUpdate?`<div class="ustat fail">✗&nbsp;<b>${mismatchUpdate}</b>&nbsp;Wrong Update</div>`:''}
-        ${needsUpdateWarn?`<div class="ustat" style="color:#856404;background:#FFFDE7;border-color:#FFC107;">⚠&nbsp;<b>${needsUpdateWarn}</b>&nbsp;Update Still Needed</div>`:''}
-        ${missingSubject?`<div class="ustat fail">✉&nbsp;<b>${missingSubject}</b>&nbsp;Email Subject Missing</div>`:''}
-        ${actionNotMade?`<div class="ustat" style="color:var(--amber);">⚠&nbsp;<b>${actionNotMade}</b>&nbsp;Action Not Made</div>`:''}
-        ${editLimitHit?`<div class="ustat fail">🔒&nbsp;<b>${editLimitHit}</b>&nbsp;Edit Limit Reached</div>`:''}
-        ${noChange?`<div class="ustat tot">→&nbsp;<b>${noChange}</b>&nbsp;No Change</div>`:''}
-        ${orderNotFound?`<div class="ustat fail">✗&nbsp;<b>${orderNotFound}</b>&nbsp;Order Not Found</div>`:''}
-        ${otherFail?`<div class="ustat fail">✗&nbsp;<b>${otherFail}</b>&nbsp;Other Error</div>`:''}
-      </div>`);
-    }
-    const mismatchBanner=hasMismatch?`<div id="mismatch-banner" style="margin-bottom:14px;padding:16px 20px;border-radius:10px;background:#FFF3CD;border:2px solid #FFC107;display:flex;align-items:flex-start;gap:14px;"><span style="font-size:24px;flex-shrink:0;">⚠</span><div style="flex:1;"><div style="font-size:14px;font-weight:800;color:#856404;margin-bottom:6px;">Mismatched orders have been highlighted.</div><div style="font-size:12px;color:#856404;line-height:1.6;"><b>Valid updates shown in green will be applied. Mismatched rows shown in red will not be updated.</b></div><button onclick="downloadMismatchedOrders()" style="margin-top:10px;padding:6px 16px;border-radius:6px;background:#856404;color:#fff;border:none;font-size:12px;font-weight:700;cursor:pointer;">↓ Download Mismatched Orders</button></div></div>`:'';
-    const rowHtml=res.results.map(r=>{
-      if(r.valid&&!r.noChange&&r.needsUpdate)return`<div class="ures ok" style="border-color:#FFC107;background:#FFFDE7;"><span class="ui-icon" style="color:#856404;">⚠</span><div class="ui-id">${r.orderId}</div><div class="ui-msg" style="color:#856404;">${r.changes?r.changes.map(c=>`<b>${c.field}</b>: ${c.old} → ${c.new}`).join(' · '):'Ready'} · <b>Still pending — add Update: ${(r.needsUpdateOptions||[]).join(' | ')}</b></div></div>`;
-      if(r.valid&&!r.noChange)return`<div class="ures ok"><span class="ui-icon">✓</span><div class="ui-id">${r.orderId}</div><div class="ui-msg">${r.changes?r.changes.map(c=>`<b>${c.field}</b>: ${c.old} → ${c.new}`).join(' · '):'Ready'}</div></div>`;
-      if(r.valid&&r.noChange)return`<div class="ures ok" style="opacity:.6"><span class="ui-icon">→</span><div class="ui-id">${r.orderId}</div><div class="ui-msg" style="color:var(--t3)">No change (values already match)</div></div>`;
-      const isMismatch=r.errorType==='mismatch_action'||r.errorType==='mismatch_update';
-      return`<div class="ures fail" style="${isMismatch?'border-color:#FFC107;background:#FFFDE7;':''}">`+`<span class="ui-icon" style="${isMismatch?'color:#856404;':''}">✗</span>`+`<div class="ui-id">${r.orderId}</div>`+`<div class="ui-msg" style="${isMismatch?'color:#856404;':''}">${r.error||'Unknown error'}</div></div>`;
-    }).join('');
-    setHTML('ubody',mismatchBanner+rowHtml);
-    // Keep a single Save Updates action available for the complete uploaded-order preview.
-    // The server-validated change set is applied on save; the preview itself retains every uploaded row.
-    $('usave-btn').style.display=(!isNoChangesScenario && totalUploaded>0)?'':'none';
-    $('upload-modal').classList.remove('hide');
-  }catch(e){hideOv();toast('Validation failed — check your connection and retry upload.','red');}
+    // action looks valid locally — pending server confirmation
+    return{orderId:d.orderId,_pending:true,
+      _localNote:d.action?('"'+d.action+'"'):''};
+  });
+
+  _uplBatch={success:true,results:initResults,_origMap:new Map(data.map(d=>[d.orderId,d]))};
+  hideOv();
+
+  // Render modal immediately
+  $('upload-modal').classList.remove('hide');
+  $('usave-btn').style.display='none';
+  const pendingCount=initResults.filter(r=>r._pending).length;
+  _uplRefreshSummary(initResults,pendingCount);
+  setHTML('ubody',initResults.map(_uplRowHtml).join(''));
+
+  // If ALL_ACTIONS wasn't loaded yet, all rows are pending — show a note
+  if(!knownActionsLower.size){
+    $('upload-title','Upload — '+data.length+' rows (loading rules…)');
+  }
+
+  // ── Phase 2: Background server validation ─────────────────────────
+  // Send ALL action-pending rows in one single request.
+  // Modal stays open; user is already reviewing local errors above.
   inp.value='';
+  const pendingData=data.filter(d=>initResults.find(r=>r.orderId===d.orderId&&r._pending));
+  if(!pendingData.length){
+    // Nothing pending (all locally flagged) — finalise immediately
+    _uplRefreshSummary(_uplBatch.results,0);
+    $('usave-btn').style.display='none'; // nothing valid to save if all locally invalid
+    return;
+  }
+  try{
+    let vRes=null;
+    for(let attempt=0;attempt<3;attempt++){
+      try{
+        vRes=await fetch(API,{method:'POST',headers:{'Content-Type':'text/plain;charset=UTF-8'},
+          body:JSON.stringify({action:'validateUpload',email:USER?.email||'',data:pendingData})}).then(r=>r.json());
+        if(vRes&&vRes.success)break;
+      }catch(ve){
+        if(attempt<2)await new Promise(r=>setTimeout(r,(attempt===0?10:15)*1000));
+      }
+    }
+    const srvRows=vRes&&vRes.success?(vRes.results||[]):
+      pendingData.map(d=>({orderId:d.orderId,valid:false,error:(vRes&&vRes.error)||'Server error — retry',errorType:'server_error'}));
+
+    // Merge into _uplBatch.results
+    const serverMap=new Map(srvRows.map(r=>[r.orderId,r]));
+    _uplBatch.results=initResults.map(r=>serverMap.has(r.orderId)?serverMap.get(r.orderId):r);
+
+    // Update DOM rows that changed
+    const ubody=document.getElementById('ubody');
+    if(ubody){
+      srvRows.forEach(sr=>{
+        const el=ubody.querySelector('[data-rid="'+sr.orderId+'"]');
+        if(el){const tmp=document.createElement('div');tmp.innerHTML=_uplRowHtml(sr);const newEl=tmp.firstChild;if(newEl)el.replaceWith(newEl);}
+      });
+    }
+    const {isNoChangesScenario,correctMatch}=_uplRefreshSummary(_uplBatch.results,0);
+    $('usave-btn').style.display=(!isNoChangesScenario&&correctMatch>0)?'':'none';
+  }catch(e){toast('Validation error — check connection and retry.','red');}
 }
 
 /* ── Browser notification helper ─────────────────────────────────
