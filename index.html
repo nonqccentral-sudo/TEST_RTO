@@ -612,7 +612,7 @@ td{padding:12px 14px;color:var(--t1);vertical-align:middle;white-space:nowrap;}
 
 <script>
 
-const API='https://script.google.com/macros/s/AKfycbx4jCnvEdVSiqXF4WHqz1HmMysR6pBORfqPyijCWcHQnhyB0xmoo1kMZ_gQHbNwtFPq/exec';
+const API='https://script.google.com/macros/s/AKfycbzE2AR4lwSguuTdao2dV19AovJbaZbZwh4_T6AO-npbD_hbzkAMlJRsLnLeWw0ju-Vycg/exec';
 const LC_KEY='rto_sum_v2343';
 const LC_TTL=20*60*1000;  // 20 min (was 15)
 const PAGE_SZ=100;
@@ -1027,10 +1027,11 @@ async function _renderCityPivot(){
 
 function rdRows(){
   const tb=$('tbody');tb.innerHTML='';
-  const canE=USER?.isAdmin?true:canEdit(SCITY||USER?.city||'');
   if(!ORDERS.length){$('temp').style.display='block';return;}
   $('temp').style.display='none';
   ORDERS.forEach(o=>{
+    // Check permission against each order's mapped city to avoid a global city mismatch.
+    const canE=USER?.isAdmin?true:canEdit(o.city||SCITY||USER?.city||'');
     const ch=CHANGES[o.orderId]||{};
     const curAct=ch.action!==undefined?ch.action:o.currentAction||'';
     const curUpd=ch.update!==undefined?ch.update:o.currentUpdate||'';
@@ -1039,7 +1040,7 @@ function rdRows(){
     const codAmt=ch.codAmount!==undefined?ch.codAmount:(o.codAmount||'');
     const isChg=ch.action!==undefined||ch.update!==undefined;
     const cl=o.isGreen?'tg':o.hasCODShortfall?'tl':o.actionMismatch?'tm':o.actionPending&&!isChg?'tr':'';
-    const aeLk=o.actionEditCount>=2;const ueLk=o.updateEditCount>=2;
+    const aeLk=o.actionEditCount>=6;const ueLk=o.updateEditCount>=6;
     let actHtml='',updHtml='';
     // SRN Completed orders: show read-only action, no editing allowed
     if(o.isGreen&&o.srnCompleted){
@@ -1077,17 +1078,20 @@ function rdRows(){
       }else{
         const selectDefaultU=`<option value="" disabled${!curUpd||!uOpts.includes(curUpd)?' selected':''}>Select</option>`;
         updHtml=`<div class="ec"><select class="isel${ch.update!==undefined?' ch':''}" onchange="onUpdChg('${o.orderId}',this.value,this)">${selectDefaultU}${uOpts.map(u=>`<option value="${u}"${u===curUpd?' selected':''}>${u}</option>`).join('')}</select>`;
-        if(curUpd==='CN Received'){updHtml+=`<span class="cn-lbl">CN Number</span><input class="cn-inp" type="text" placeholder="CN123…" value="${cnNum}" onchange="onCN('${o.orderId}',this.value)"/>`;}
+        if(curUpd==='CN Received'){
+          const existingCNSubj=ch.emailSubjectLine!==undefined?ch.emailSubjectLine:(o.emailSubjectLine||'');
+          updHtml+=`<span class="cn-lbl" style="font-weight:700;">CN Number OR Email Subject (one required)</span><input class="cn-inp" type="text" placeholder="CN Number" value="${cnNum}" onchange="onCN('${o.orderId}',this.value)"/><input class="cn-inp" style="min-width:180px;" type="text" placeholder="Email Subject Line" value="${existingCNSubj.replace(/"/g,'&quot;')}" onchange="onEmailSubj('${o.orderId}',this.value)"/>`;
+        }
         if(curUpd==='COD Collected'){
           const existingCodSubj=ch.emailSubjectLine!==undefined?ch.emailSubjectLine:(o.emailSubjectLine||'');
-          updHtml+=`<span class="ref-lbl">Ref No.</span><input class="ref-inp" type="text" placeholder="REF…" value="${refNum}" onchange="onRef('${o.orderId}',this.value)"/><span class="ref-lbl" style="color:var(--amber);">COD Amount ₹</span><input class="cod-inp" type="number" placeholder="0" value="${codAmt}" onchange="onCOD('${o.orderId}',this.value)"/>${o.hasCODShortfall?'<div class="cod-warn">⚠ COD shortfall detected</div>':''}<span class="cn-lbl" style="color:var(--red);font-weight:700;">* Email Subject</span><input class="cn-inp" style="min-width:180px;" type="text" placeholder="Required…" value="${existingCodSubj.replace(/"/g,'&quot;')}" onchange="onEmailSubj('${o.orderId}',this.value)"/>`;
+          updHtml+=`<span class="ref-lbl" style="font-weight:700;">Reference Number OR Email Subject (one required)</span><input class="ref-inp" type="text" placeholder="Reference Number" value="${refNum}" onchange="onRef('${o.orderId}',this.value)"/><input class="cn-inp" style="min-width:180px;" type="text" placeholder="Email Subject Line" value="${existingCodSubj.replace(/"/g,'&quot;')}" onchange="onEmailSubj('${o.orderId}',this.value)"/><span class="ref-lbl" style="color:var(--amber);">COD Amount ₹</span><input class="cod-inp" type="number" placeholder="0" value="${codAmt}" onchange="onCOD('${o.orderId}',this.value)"/>${o.hasCODShortfall?'<div class="cod-warn">⚠ COD shortfall detected</div>':''}`;
         }
         if(curUpd==='Loss'){updHtml+=`<span class="loss-disp">GMV: ${fmtN(o.gmv||0)}</span>`;}
         updHtml+='</div>';
       }
     }
     }// end non-SRN-completed block
-    if(curAct==='Marked delivered on THOR but cancelled on admin' || curAct==='Marked delivered on THOR but cancelled on ADMIN'){
+    if(curAct==='Marked delivered on THOR but cancelled on admin' || curAct==='Marked delivered on THOR but cancelled on ADMIN' || curAct==='Marked Delivered on THOR but Cancelled on Admin'){
       const proofUrl=ch.thorProofUrl||o.thorProofUrl||'';
       updHtml += `<div class="ec" style="margin-top:6px;display:block;"><span class="ref-lbl" style="color:var(--red);font-weight:700;">* Image proof required</span><input type="file" accept="image/*" capture="environment" onchange="uploadTHORProofForOrder('${o.orderId}',this)" style="max-width:220px;font-size:11px;"/><span id="thor-proof-${o.orderId}" class="hint" style="color:${proofUrl?'var(--green)':'var(--red)'}">${proofUrl?'✓ Proof attached':'Attach proof before saving'}</span></div>`;
     }
@@ -1155,7 +1159,7 @@ function _patchOrdersAndRefreshUI(saveResults,changeMap){
     if(ch.codAmount!==undefined)o.codAmount=ch.codAmount;
     if(ch.thorProofUrl!==undefined)o.thorProofUrl=ch.thorProofUrl;
     const act=o.currentAction||'';const upd=o.currentUpdate||'';
-    const srnOnly=new Set(['Connected to Warehouse \u2013 SRN Pending','Connected to Retail \u2013 SRN Pending','Pending with 3PL','Order Lost/Rider Absconded']);
+    const srnOnly=new Set(['Connected to Warehouse \u2013 SRN Pending','Connected to Retail \u2013 SRN Pending','Pending with 3PL','Order Lost/Rider Absconded','Handover to Marketplace Done (SRN Pending)','Pending with 3P Rider','Marked delivered on THOR but cancelled on admin']);
     const closing=new Set(['CN Received','COD Collected','Loss','Order Lost/Rider Absconded']);
     o.isClosureRemark=srnOnly.has(act)||closing.has(upd);
     const closingApplied=closing.has(upd)||act==='Order Lost/Rider Absconded';
@@ -1202,7 +1206,7 @@ async function saveAll(){
   for(const [id,ch] of Object.entries(CHANGES)){
     const o=ORDERS.find(x=>x.orderId===id);
     const act=ch.action!==undefined?ch.action:(o?.currentAction||'');
-    if((act==='Marked delivered on THOR but cancelled on admin'||act==='Marked delivered on THOR but cancelled on ADMIN') && !(ch.thorProofUrl||o?.thorProofUrl)){toast('Attach the compulsory image proof for order '+id+' before saving','red');return;}
+    if((act==='Marked delivered on THOR but cancelled on admin'||act==='Marked delivered on THOR but cancelled on ADMIN'||act==='Marked Delivered on THOR but Cancelled on Admin') && !(ch.thorProofUrl||o?.thorProofUrl)){toast('Attach the compulsory image proof for order '+id+' before saving','red');return;}
   }
   $('sbtn').disabled=true;
   const changeSnapshot=Object.assign({},CHANGES);
@@ -1313,6 +1317,7 @@ async function handleUpload(inp){
     const noChange=res.results.filter(r=>r.valid&&r.noChange).length;
     const mismatchAction=res.results.filter(r=>!r.valid&&r.errorType==='mismatch_action').length;
     const mismatchUpdate=res.results.filter(r=>!r.valid&&r.errorType==='mismatch_update').length;
+    const needsUpdateWarn=res.results.filter(r=>r.valid&&r.needsUpdate).length;
     const actionNotMade=res.results.filter(r=>!r.valid&&r.errorType==='action_not_made').length;
     const editLimitHit=res.results.filter(r=>!r.valid&&r.errorType==='edit_limit').length;
     const orderNotFound=res.results.filter(r=>!r.valid&&r.errorType==='not_found').length;
@@ -1330,6 +1335,7 @@ async function handleUpload(inp){
         ${correctMatch?`<div class="ustat ok">✓&nbsp;<b>${correctMatch}</b>&nbsp;Ready to Save</div>`:''}
         ${mismatchAction?`<div class="ustat fail">✗&nbsp;<b>${mismatchAction}</b>&nbsp;Wrong Action</div>`:''}
         ${mismatchUpdate?`<div class="ustat fail">✗&nbsp;<b>${mismatchUpdate}</b>&nbsp;Wrong Update</div>`:''}
+        ${needsUpdateWarn?`<div class="ustat" style="color:#856404;background:#FFFDE7;border-color:#FFC107;">⚠&nbsp;<b>${needsUpdateWarn}</b>&nbsp;Update Still Needed</div>`:''}
         ${missingSubject?`<div class="ustat fail">✉&nbsp;<b>${missingSubject}</b>&nbsp;Email Subject Missing</div>`:''}
         ${actionNotMade?`<div class="ustat" style="color:var(--amber);">⚠&nbsp;<b>${actionNotMade}</b>&nbsp;Action Not Made</div>`:''}
         ${editLimitHit?`<div class="ustat fail">🔒&nbsp;<b>${editLimitHit}</b>&nbsp;Edit Limit Reached</div>`:''}
@@ -1340,6 +1346,7 @@ async function handleUpload(inp){
     }
     const mismatchBanner=hasMismatch?`<div id="mismatch-banner" style="margin-bottom:14px;padding:16px 20px;border-radius:10px;background:#FFF3CD;border:2px solid #FFC107;display:flex;align-items:flex-start;gap:14px;"><span style="font-size:24px;flex-shrink:0;">⚠</span><div style="flex:1;"><div style="font-size:14px;font-weight:800;color:#856404;margin-bottom:6px;">Mismatched orders have been highlighted.</div><div style="font-size:12px;color:#856404;line-height:1.6;"><b>Valid updates shown in green will be applied. Mismatched rows shown in red will not be updated.</b></div><button onclick="downloadMismatchedOrders()" style="margin-top:10px;padding:6px 16px;border-radius:6px;background:#856404;color:#fff;border:none;font-size:12px;font-weight:700;cursor:pointer;">↓ Download Mismatched Orders</button></div></div>`:'';
     const rowHtml=res.results.map(r=>{
+      if(r.valid&&!r.noChange&&r.needsUpdate)return`<div class="ures ok" style="border-color:#FFC107;background:#FFFDE7;"><span class="ui-icon" style="color:#856404;">⚠</span><div class="ui-id">${r.orderId}</div><div class="ui-msg" style="color:#856404;">${r.changes?r.changes.map(c=>`<b>${c.field}</b>: ${c.old} → ${c.new}`).join(' · '):'Ready'} · <b>Still pending — add Update: ${(r.needsUpdateOptions||[]).join(' | ')}</b></div></div>`;
       if(r.valid&&!r.noChange)return`<div class="ures ok"><span class="ui-icon">✓</span><div class="ui-id">${r.orderId}</div><div class="ui-msg">${r.changes?r.changes.map(c=>`<b>${c.field}</b>: ${c.old} → ${c.new}`).join(' · '):'Ready'}</div></div>`;
       if(r.valid&&r.noChange)return`<div class="ures ok" style="opacity:.6"><span class="ui-icon">→</span><div class="ui-id">${r.orderId}</div><div class="ui-msg" style="color:var(--t3)">No change (values already match)</div></div>`;
       const isMismatch=r.errorType==='mismatch_action'||r.errorType==='mismatch_update';
@@ -1359,16 +1366,17 @@ async function saveUploadChanges(){
   const valid=_uplBatch.results.filter(r=>r.valid&&!r.noChange);
   if(!valid.length){toast('No changes to save','amber');return;}
   const changeMap={};valid.forEach(r=>{if(r.resolved)changeMap[r.orderId]=r.resolved;});
-  const CHUNK=4; // reduced from 15 — prevents GAS timeout on bulk upload
+  const CHUNK=25; // gzip cache = fast reads; 25 rows/call is safe (was 4 — caused 93 round-trips + bustCache per call = 2h)
   const allChanges=valid.map(r=>({orderId:r.orderId,...(r.resolved||{})}));
   const allResults=[];
-  showOv('Saving '+valid.length+' updates…','Sending in chunks of '+CHUNK);
+  showOv('Saving '+valid.length+' updates…','Sending in batches of '+CHUNK);
   try{
     for(let i=0;i<allChanges.length;i+=CHUNK){
       const chunk=allChanges.slice(i,i+CHUNK);
       $('ov-msg','Saving '+(i+1)+'–'+Math.min(i+CHUNK,allChanges.length)+' of '+allChanges.length+'…');
+      // skipCacheBust=true: defer cache invalidation until all chunks done (massive speed-up)
       const _doChunk=async()=>fetch(API,{method:'POST',headers:{'Content-Type':'text/plain;charset=UTF-8'},
-        body:JSON.stringify({action:'batchSave',email:USER?.email||'',source:'upload',changes:chunk})}).then(r=>r.json());
+        body:JSON.stringify({action:'batchSave',email:USER?.email||'',source:'upload',changes:chunk,skipCacheBust:true})}).then(r=>r.json());
       let res=null;
       for(let att=0;att<3;att++){
         try{res=await _doChunk();if(res&&res.success)break;}
@@ -1380,6 +1388,13 @@ async function saveUploadChanges(){
         chunk.forEach(ch=>allResults.push({orderId:ch.orderId,success:false,error:(res&&res.error)||'Batch failed — retry'}));
         console.warn('Chunk '+(Math.floor(i/CHUNK)+1)+' failed:',(res&&res.error)||'network error');
       }
+    }
+    // All chunks done — now do ONE bust+rebuild instead of one per chunk
+    if(allResults.some(r=>r.success)){
+      $('ov-msg','Refreshing dashboard data…');
+      try{await fetch(API,{method:'POST',headers:{'Content-Type':'text/plain;charset=UTF-8'},
+        body:JSON.stringify({action:'bustCache',email:USER?.email||''})}).then(r=>r.json());}
+      catch(e){console.warn('Cache bust failed (non-critical):',e);}
     }
     hideOv();
     const ok=allResults.filter(r=>r.success).length;
@@ -1403,12 +1418,14 @@ async function saveUploadChanges(){
     }).join(''));
     const mAct=_uplBatch.results.filter(r=>!r.valid&&r.errorType==='mismatch_action').length;
     const mUpd=_uplBatch.results.filter(r=>!r.valid&&r.errorType==='mismatch_update').length;
+    const mMissUpd=_uplBatch.results.filter(r=>r.valid&&r.needsUpdate).length;
     const noAct=_uplBatch.results.filter(r=>!r.valid&&r.errorType==='action_not_made').length;
     setHTML('usum',`<div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center;padding:4px 0;">
       <div class="ustat ok">✓&nbsp;<b>${ok}</b>&nbsp;Saved &amp; Live</div>
-      ${fail?`<div class="ustat fail">✗&nbsp;<b>${fail}</b>&nbsp;Save Failed</div>`:''} 
-      ${mAct?`<div class="ustat fail">✗&nbsp;<b>${mAct}</b>&nbsp;Mismatch Actions</div>`:''}
-      ${mUpd?`<div class="ustat fail">✗&nbsp;<b>${mUpd}</b>&nbsp;Mismatch Updates</div>`:''}
+      ${fail?`<div class="ustat fail">✗&nbsp;<b>${fail}</b>&nbsp;Save Failed</div>`:''}
+      ${mAct?`<div class="ustat fail">✗&nbsp;<b>${mAct}</b>&nbsp;Wrong Action</div>`:''}
+      ${mUpd?`<div class="ustat fail">✗&nbsp;<b>${mUpd}</b>&nbsp;Wrong Update</div>`:''}
+      ${mMissUpd?`<div class="ustat" style="color:#856404;background:#FFFDE7;border-color:#FFC107;">⚠&nbsp;<b>${mMissUpd}</b>&nbsp;Update Still Needed</div>`:''}
       ${noAct?`<div class="ustat" style="color:var(--amber);">⚠&nbsp;<b>${noAct}</b>&nbsp;Action Not Made</div>`:''}
       <div class="ustat tot"><b>${_uplBatch.results.length}</b>&nbsp;Total Uploaded</div>
     </div>`);
