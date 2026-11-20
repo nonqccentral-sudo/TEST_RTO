@@ -614,7 +614,7 @@ td{padding:12px 14px;color:var(--t1);vertical-align:middle;white-space:nowrap;}
 
 <script>
 
-const API='https://script.google.com/macros/s/AKfycbxsiZ1eVJ2D_aaIi1VZwRbDPraIUdSYpwU1-dyGavkJ7hs-4f3qAhXH2xUi3zLVvDq1/exec';
+const API='https://script.google.com/macros/s/AKfycbzE2AR4lwSguuTdao2dV19AovJbaZbZwh4_T6AO-npbD_hbzkAMlJRsLnLeWw0ju-Vycg/exec';
 const LC_KEY='rto_sum_v2343';
 const LC_TTL=20*60*1000;  // 20 min (was 15)
 const PAGE_SZ=100;
@@ -1044,7 +1044,7 @@ function rdRows(){
     const codAmt=ch.codAmount!==undefined?ch.codAmount:(o.codAmount||'');
     const isChg=ch.action!==undefined||ch.update!==undefined;
     const cl=o.isGreen?'tg':o.hasCODShortfall?'tl':o.actionMismatch?'tm':o.actionPending&&!isChg?'tr':'';
-    const aeLk=o.actionEditCount>=6;const ueLk=o.updateEditCount>=6;
+    const aeLk=false;const ueLk=false; // edit limit removed — no lock
     let actHtml='',updHtml='';
     // SRN Completed orders: show read-only action, no editing allowed
     if(o.isGreen&&o.srnCompleted){
@@ -1755,9 +1755,21 @@ async function moveResolvedOrders(mode){
   const m=mode||'both';
   const modeLabel=m==='srn'?'SRN-completed':m==='cr'?'Closure-Remarks':'SRN-completed + Closure-Remarks';
   if(!confirm('This will archive all '+modeLabel+' orders to ORDERS_BACKUP_RTO and remove them from this dashboard.\n\nContinue?'))return;
-  showOv('Archiving orders…','Moving '+modeLabel+' rows — please wait');
+  showOv('Archiving orders…','Moving '+modeLabel+' rows — this may take 30–60 s, please wait');
   try{
-    const r=await fetch(API+'?action=moveResolvedOrders&email='+encodeURIComponent(USER?.email||'')+'&mode='+m).then(r=>r.json());
+    const ctrl=new AbortController();
+    const timer=setTimeout(()=>ctrl.abort(),300000); // 5-min hard timeout
+    let r;
+    try{
+      const res=await fetch(API+'?action=moveResolvedOrders&email='+encodeURIComponent(USER?.email||'')+'&mode='+m,{signal:ctrl.signal});
+      clearTimeout(timer);
+      r=await res.json();
+    }catch(fe){
+      clearTimeout(timer);
+      hideOv();
+      toast(fe.name==='AbortError'?'Archive timed out — try again with fewer rows':'Network error: '+fe.message,'red');
+      return;
+    }
     hideOv();
     if(!r.success){toast(r.error||'Archive failed','red');return;}
     const total=(r.movedSrn||0)+(r.movedCr||0);
