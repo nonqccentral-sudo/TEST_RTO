@@ -433,6 +433,20 @@ td{padding:12px 14px;color:var(--t1);vertical-align:middle;white-space:nowrap;}
 <div class="mbg hide" id="cr-modal" onclick="if(event.target===this)closeCR()">
   <div class="modal" style="max-width:860px">
     <div class="mhdr"><h2>Closure Remarks Breakdown</h2><button class="mclose" onclick="closeCR()">&#10005;</button></div>
+    <!-- Admin-only: CN / COD Collected bulk closure upload -->
+    <div id="cr-admin-bar" style="display:none;gap:8px;padding:12px 22px;border-bottom:1px solid var(--border);background:var(--surf2);flex-wrap:wrap;align-items:center;">
+      <span style="font-size:12px;font-weight:700;color:var(--t2);">Admin Upload:</span>
+      <button onclick="openCNClosureUpload('CN Received')"
+        style="padding:7px 16px;border-radius:7px;background:#0EA5E9;color:#fff;border:none;font-size:12px;font-weight:700;cursor:pointer;">
+        &#11014; CN Received
+      </button>
+      <button onclick="openCNClosureUpload('COD Collected')"
+        style="padding:7px 16px;border-radius:7px;background:#10B981;color:#fff;border:none;font-size:12px;font-weight:700;cursor:pointer;">
+        &#11014; COD Collected
+      </button>
+      <input type="file" id="cn-closure-file" accept=".xlsx,.xls" style="display:none"
+        onchange="handleCNClosureUpload(this)"/>
+    </div>
     <div class="mbody" id="cr-body">
       <div style="display:flex;gap:0;margin-bottom:16px;border-bottom:2px solid var(--border);">
         <button id="cr-tab-1" onclick="setCRTab(1)" style="padding:8px 20px;font-size:12px;font-weight:700;border:none;background:none;cursor:pointer;border-bottom:2px solid var(--blue);color:var(--blue);margin-bottom:-2px;">SRN Pending – Warehouse/Retail</button>
@@ -491,7 +505,7 @@ td{padding:12px 14px;color:var(--t1);vertical-align:middle;white-space:nowrap;}
     <span class="dl-lbl">&#11015; Downloads</span>
     <button class="dlb dlb-pi" id="dlb-pan" onclick="triggerDl('panIndia')">&#11015; PAN India</button>
     <button class="dlb dlb-pi" id="region-upload-btn" onclick="triggerUpload()" style="background:var(--purplel);border-color:#D8B4FE;color:var(--purple);display:none;">&#11014; Upload Updates</button>
-    <button class="dlb" id="move-resolved-btn" onclick="moveResolvedOrders('both')" style="background:#F0FDF4;border-color:#86EFAC;color:#166534;display:none;" title="Archive SRN-Completed &amp; Closure-Remarks orders to ORDERS_BACKUP_RTO">&#8594; Archive Orders</button>
+    <button class="dlb" id="move-resolved-btn" onclick="moveResolvedOrders('srn')" style="background:#F0FDF4;border-color:#86EFAC;color:#166534;display:none;" title="Archive SRN-Completed orders to ORDERS_BACKUP_RTO">&#8594; Archive Orders</button>
     <button class="dlb dlb-flt" id="dlbflt" onclick="triggerDl('filtered')" disabled>&#9660; Filtered</button>
     <button class="dlb dlb-loss" onclick="triggerDl('loss')">&#11015; Loss Report</button>
     <div style="margin-left:auto;display:flex;gap:8px;align-items:center;">
@@ -616,7 +630,7 @@ td{padding:12px 14px;color:var(--t1);vertical-align:middle;white-space:nowrap;}
 
 const API='https://script.google.com/macros/s/AKfycbxsiZ1eVJ2D_aaIi1VZwRbDPraIUdSYpwU1-dyGavkJ7hs-4f3qAhXH2xUi3zLVvDq1/exec';
 const LC_KEY='rto_sum_v2343';
-const LC_TTL=20*60*1000;  // 20 min (was 15)
+const LC_TTL=30*60*1000;  // 30 min (was 20) — matches server cache TTL
 const PAGE_SZ=100;
 
 let USER=null,SUM=null,TRD=[],ORDERS=[],CHANGES={},PG=1,TOTAL_PGS=1,SCITY='',QF='Overall',GAP=false,APF=false,ORDERS_LOADING=false,ALL_ACTIONS=[],_charts={},_uplBatch=null;
@@ -794,7 +808,9 @@ function _renderSummary(sd){
 function rdKPI(k){
   const _kTotal=k.totalRTO||0;const _base=_kTotal||1;
   const _srnN=k.srnCompleted||0;const _crN=k.closureRemarks||0;
-  const _apN=Math.max(0,_kTotal-_srnN-_crN);
+  // Use server-computed actionPending (per-order flag) so KPI card matches the ageing tiles.
+  // Old formula (totalRTO-srnCompleted-closureRemarks) over-counted orders with a valid action+update.
+  const _apN=k.actionPending>=0?k.actionPending:Math.max(0,_kTotal-_srnN-_crN);
   $('k-tot',_kTotal.toLocaleString('en-IN'));$('k-tots',fmtN(k.totalAmount||0)+' total GMV');
   $('k-gr',parseFloat((_srnN/_base*100).toFixed(1))+'%');
   const _grs=document.getElementById('k-grs');if(_grs)_grs.textContent='('+_srnN+' orders) · '+fmtN(k.srnAmt||0);
@@ -1250,7 +1266,12 @@ async function saveAll(){
     if(fail){const fIds=allResults.filter(r=>!r.success).map(r=>r.orderId+': '+(r.error||'failed')).join('\n');console.warn('Save failures:\n'+fIds);}
     $('sst','');updSbar();
     _patchOrdersAndRefreshUI(allResults,changeSnapshot);
-    fetch(API+'?action=bustCache&email='+encodeURIComponent(USER?.email||'')).catch(()=>{});
+    // Bust stale cache then immediately pre-warm it in background so next dashboard load is fast
+    fetch(API+'?action=bustCache&email='+encodeURIComponent(USER?.email||'')).then(()=>{
+      fetch(API+'?action=warmCache&email='+encodeURIComponent(USER?.email||'')).catch(()=>{});
+    }).catch(()=>{});
+    // V2-23: refresh KPI/overview cards so Action Pending count updates without full reload
+    if(ok>0){setTimeout(()=>{localStorage.removeItem(LC_KEY);loadSummary();},1500);}
   }catch(e){toast('Save failed: '+e.message,'red');}
   $('sbtn').disabled=false;
 }
@@ -1455,33 +1476,68 @@ async function saveUploadChanges(){
   const allChanges=valid.map(r=>({orderId:r.orderId,...(r.resolved||{})}));
   const allResults=[];
 
-  // ── Single-request save (tab-independent) ────────────────────────
-  // All rows sent in ONE fetch call → browser continues the request
-  // even if the user switches tabs. No frontend loop = no sequential
-  // dependency that breaks on tab-switch. Backend handles the full
-  // iteration and does a single cache bust at the end.
-  showOv('Saving '+valid.length+' updates…','You can switch tabs — we\'ll notify you when done');
-  // Request notification permission proactively so the prompt appears
-  // before the user potentially switches away.
+  // ── Chunked save with live progress ──────────────────────────────
+  // Split into chunks of 50 → each chunk is one batchSave GAS call.
+  // Progress overlay updates after every chunk so user sees progress
+  // even on tab-switch. Cache bust only on the final chunk.
+  const CHUNK=10; // 10 orders × ~9 writes = ~90 Sheets calls ≈ 30s — fits old backend within 180s
+  const FETCH_TIMEOUT=180000; // 180s — covers cold getRTOData + per-order writes on old backend
+  const chunks=[];
+  for(let i=0;i<allChanges.length;i+=CHUNK)chunks.push(allChanges.slice(i,i+CHUNK));
+  const total=allChanges.length;
+  let saved=0;
+  const _ovSub=()=>{
+    const rem=total-saved;
+    if(saved===0)return'You can switch tabs — we\'ll notify you when done';
+    if(rem<=0)return'Finalising… almost there!';
+    return`Saved ${saved} ✓ — saving ${Math.min(CHUNK,rem)} more…`;
+  };
+  showOv('Saving 0 / '+total+' updates…',_ovSub());
+  // Request notification permission proactively.
   if('Notification' in window && Notification.permission==='default'){
     Notification.requestPermission().catch(()=>{});
   }
+  // V2-23: Session keepalive — ping GAS every 60s to prevent OAuth session expiry during long saves.
+  // GAS sessions can time out after ~60-90s of inactivity, causing mid-process logout.
+  const _kaIv=setInterval(()=>{
+    fetch(API+'?action=ping&email='+encodeURIComponent(USER?.email||'')).catch(()=>{});
+  },60000);
   try{
-    let res=null;
-    for(let att=0;att<3;att++){
-      try{
-        res=await fetch(API,{method:'POST',headers:{'Content-Type':'text/plain;charset=UTF-8'},
-          body:JSON.stringify({action:'bulkSave',email:USER?.email||'',source:'upload',changes:allChanges})}).then(r=>r.json());
-        if(res&&res.success)break;
-      }catch(eR){
-        if(att<2){$('ov-msg','Network hiccup, retrying (attempt '+(att+2)+'/3)…');await new Promise(r=>setTimeout(r,(att+1)*2000));}
+    for(let ci=0;ci<chunks.length;ci++){
+      const chunk=chunks[ci];
+      const isLast=ci===chunks.length-1;
+      let res=null;
+      for(let att=0;att<3;att++){
+        const ctrl=new AbortController();
+        const tId=setTimeout(()=>ctrl.abort(),FETCH_TIMEOUT);
+        try{
+          res=await fetch(API,{method:'POST',headers:{'Content-Type':'text/plain;charset=UTF-8'},
+            signal:ctrl.signal,
+            body:JSON.stringify({action:'batchSave',email:USER?.email||'',source:'upload',
+              changes:chunk,...(isLast?{}:{skipCacheBust:true})})}).then(r=>r.json());
+          clearTimeout(tId);
+          if(res&&res.success)break;
+        }catch(eR){
+          clearTimeout(tId);
+          if(att<2){
+            $('ov-sub','Chunk '+(ci+1)+' slow — retrying ('+( att+2)+'/3)…');
+            await new Promise(r=>setTimeout(r,(att+1)*3000));
+          }
+        }
       }
+      if(res&&res.success){
+        allResults.push(...(res.results||[]));
+        saved+=chunk.length;
+      }else{
+        // Chunk failed — mark all in this chunk as failed
+        chunk.forEach(ch=>allResults.push({orderId:ch.orderId,success:false,error:(res&&res.error)||'Save failed — retry'}));
+        saved+=chunk.length;
+      }
+      // Update progress overlay
+      $('ov-msg','Saving '+saved+' / '+total+' updates…');
+      $('ov-sub',_ovSub());
     }
-    if(res&&res.success){allResults.push(...(res.results||[]));}
-    else{
-      // Full failure — mark every row
-      allChanges.forEach(ch=>allResults.push({orderId:ch.orderId,success:false,error:(res&&res.error)||'Save failed — retry'}));
-    }
+    clearInterval(_kaIv);
     hideOv();
     const ok=allResults.filter(r=>r.success).length;
     const fail=allResults.filter(r=>!r.success).length;
@@ -1491,6 +1547,8 @@ async function saveUploadChanges(){
     Object.keys(localStorage).filter(k=>k.startsWith('rto_f_')||k===LC_KEY).forEach(k=>localStorage.removeItem(k));
     _patchOrdersAndRefreshUI(allResults,changeMap);
     if(SCITY)afterOrdersCity();
+    // V2-23: refresh KPI cards (Action Pending count etc.) without full page reload
+    if(ok>0){setTimeout(()=>{localStorage.removeItem(LC_KEY);loadSummary();},2000);}
     const savedIds=new Set(allResults.filter(r=>r.success).map(r=>r.orderId));
     const failedSaves=allResults.filter(r=>!r.success);
     _uplBatch.results.forEach(r=>{
@@ -1520,8 +1578,10 @@ async function saveUploadChanges(){
     $('usave-btn').style.display='none';
     const badge=$('usave-badge');const badgeCount=$('usave-badge-count');
     if(badge&&badgeCount){badgeCount.textContent=ok;badge.style.display='flex';}
-    fetch(API+'?action=bustCache&email='+encodeURIComponent(USER?.email||'')).catch(()=>{});
-  }catch(e){hideOv();toast('Error: '+e.message,'red');}
+    fetch(API+'?action=bustCache&email='+encodeURIComponent(USER?.email||'')).then(()=>{
+      fetch(API+'?action=warmCache&email='+encodeURIComponent(USER?.email||'')).catch(()=>{});
+    }).catch(()=>{});
+  }catch(e){clearInterval(_kaIv);hideOv();toast('Error: '+e.message,'red');}
 }
 
 function confirmUploadSave(){
@@ -1588,6 +1648,9 @@ function closeAP(){$('ap-modal').classList.add('hide');}
 async function openCRModal(){
   setHTML('cr-pane-1','<div class="emp"><div class="emp-i">⏳</div>Loading…</div>');
   setHTML('cr-pane-2','<div class="emp"><div class="emp-i">⏳</div>Loading…</div>');
+  // Show admin upload bar only for admins
+  const adminBar=$('cr-admin-bar');
+  if(adminBar) adminBar.style.display=USER?.isAdmin?'flex':'none';
   $('cr-modal').classList.remove('hide');
   const eml=encodeURIComponent(USER?.email||'');const cq=_cq();
   const render=(rows,emptyMsg)=>{
@@ -1696,6 +1759,63 @@ async function viewRecoveredOrders(){
   }catch(e){setHTML('loss-modal-body','<div class="emp">Error: '+e.message+'</div>');}
 }
 function openLossRecoveryUpload(){$('loss-recovery-file').click();}
+
+/* ── CN / COD Collected closure upload (admin-only) ─────────────────────── */
+let _cnClosureType='CN Received';
+function openCNClosureUpload(type){
+  if(!USER?.isAdmin){toast('Admin access required','red');return;}
+  _cnClosureType=type||'CN Received';
+  $('cn-closure-file').click();
+}
+
+async function handleCNClosureUpload(inp){
+  const file=inp.files[0];if(!file)return;
+  showOv('Parsing '+_cnClosureType+' file…','Reading Excel');
+  const ab=await file.arrayBuffer();
+  const wb=XLSX.read(ab,{type:'array'});
+  const sh=wb.Sheets[wb.SheetNames[0]];
+  const rows=XLSX.utils.sheet_to_json(sh,{header:1,raw:true,defval:''});
+  if(rows.length<2){hideOv();toast('File is empty','red');inp.value='';return;}
+
+  const hdr=rows[0].map(h=>String(h||'').toLowerCase().trim());
+  const oi=hdr.findIndex(h=>h.includes('order'));
+  const ci=hdr.findIndex(h=>h.includes('cn')||h.includes('consignment'));
+  if(oi<0){hideOv();toast('Cannot find Order ID column','red');inp.value='';return;}
+
+  const uploadRows=rows.slice(1)
+    .filter(r=>String(r[oi]||'').trim())
+    .map(r=>({
+      orderId:String(r[oi]||'').trim(),
+      cnNumber:ci>=0?String(r[ci]||'').trim():''
+    }));
+
+  hideOv();
+  if(!uploadRows.length){toast('No data rows found','amber');inp.value='';return;}
+
+  if(!confirm('Mark '+uploadRows.length+' orders as closed via '+_cnClosureType+'?\nThis will remove them from the dashboard.'))
+    {inp.value='';return;}
+
+  showOv('Uploading '+_cnClosureType+' closure…','Saving to backend ('+uploadRows.length+' orders)');
+  try{
+    const res=await fetch(API,{
+      method:'POST',
+      headers:{'Content-Type':'text/plain;charset=UTF-8'},
+      body:JSON.stringify({action:'cnClosureUpload',email:USER?.email||'',closureType:_cnClosureType,rows:uploadRows})
+    }).then(r=>r.json());
+    hideOv();
+    if(res.success){
+      toast(res.saved+' orders closed via '+_cnClosureType+(res.failed?' · '+res.failed+' failed':''),'green');
+      localStorage.removeItem(LC_KEY);
+      // Refresh dashboard
+      setTimeout(()=>{loadSummary();loadOrders();},1500);
+      // Refresh CR modal if still open
+      if(!$('cr-modal').classList.contains('hide'))openCRModal();
+    } else {
+      toast(res.error||'Upload failed','red');
+    }
+  }catch(e){hideOv();toast('Network error: '+e.message,'red');}
+  inp.value='';
+}
 
 async function handleLossRecovery(inp){
   const file=inp.files[0];if(!file)return;
