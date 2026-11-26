@@ -1804,12 +1804,12 @@ async function handleCNClosureUpload(inp){
     }).then(r=>r.json());
     hideOv();
     if(res.success){
-      toast(res.saved+' orders closed via '+_cnClosureType+(res.failed?' · '+res.failed+' failed':''),'green');
+      const msg=res.saved+' orders archived to "'+_cnClosureType+'" tab'+(res.failed?' · '+res.failed+' IDs not found':'');
+      toast(msg,'green');
       localStorage.removeItem(LC_KEY);
-      // Refresh dashboard
       setTimeout(()=>{loadSummary();loadOrders();},1500);
-      // Refresh CR modal if still open
       if(!$('cr-modal').classList.contains('hide'))openCRModal();
+      if(res.sheetUrl)console.log('Archive sheet:',res.sheetUrl);
     } else {
       toast(res.error||'Upload failed','red');
     }
