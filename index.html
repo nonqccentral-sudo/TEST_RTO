@@ -1111,6 +1111,12 @@ function rdRows(){
       }
     }
     }// end non-SRN-completed block
+    // CN Received as action: show mandatory CN Number / Email Subject inputs in the update column
+    if(curAct==='CN Received' && canE && !(o.isGreen&&o.srnCompleted)){
+      const existingCNSubj=ch.emailSubjectLine!==undefined?ch.emailSubjectLine:(o.emailSubjectLine||'');
+      const hasCNData=!!(cnNum||existingCNSubj);
+      updHtml=`<div class="ec"><span class="cn-lbl" style="font-weight:700;color:${hasCNData?'var(--green)':'var(--red)'};">${hasCNData?'✓ ':'* '}CN Number OR Email Subject (one required)</span><input class="cn-inp" type="text" placeholder="CN Number" value="${cnNum.replace(/"/g,'&quot;')}" onchange="onCN('${o.orderId}',this.value)"/><input class="cn-inp" style="min-width:180px;" type="text" placeholder="Email Subject Line" value="${existingCNSubj.replace(/"/g,'&quot;')}" onchange="onEmailSubj('${o.orderId}',this.value)"/></div>`;
+    }
     if(curAct==='Marked delivered on THOR but cancelled on admin' || curAct==='Marked delivered on THOR but cancelled on ADMIN' || curAct==='Marked Delivered on THOR but Cancelled on Admin'){
       const proofUrl=ch.thorProofUrl||o.thorProofUrl||'';
       updHtml += `<div class="ec" style="margin-top:6px;display:block;"><span class="ref-lbl" style="color:var(--red);font-weight:700;">* Image proof required</span><input type="file" accept="image/*" capture="environment" onchange="uploadTHORProofForOrder('${o.orderId}',this)" style="max-width:220px;font-size:11px;"/><span id="thor-proof-${o.orderId}" class="hint" style="color:${proofUrl?'var(--green)':'var(--red)'}">${proofUrl?'✓ Proof attached':'Attach proof before saving'}</span></div>`;
